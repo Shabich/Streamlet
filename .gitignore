@@ -1,0 +1,27 @@
+# --- Système / éditeurs ---
+.DS_Store
+Thumbs.db
+desktop.ini
+.vscode/
+.idea/
+
+# --- Python ---
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+
+# --- Extension empaquetée ---
+# La clé .pem signe l'extension : elle est PRIVÉE, ne jamais la publier.
+*.pem
+*.crx
+*.zip
+
+# --- Données générées par le serveur (questions, réponses, raisonnements) ---
+qcm.json
+raisonnements.jsonl
+*.log
+
+# --- Secrets ---
+.env
+.env.*
