@@ -10,6 +10,7 @@
   const envois = new Map(); // numéro d'envoi -> éléments de la page ([n] -> élément)
 
   const propre = (t) => (t || "").replace(/\s+/g, " ").trim();
+  const tr = (cle, ...valeurs) => chrome.i18n.getMessage(cle, valeurs.map(String)); // textes traduits
   const texte = (el) => propre(el?.innerText ?? el?.textContent);
 
   function visible(el) {
@@ -450,7 +451,7 @@
       tete.className = "tete";
       tete.append(el("span", "titre", "Streamlet"));
       const fermer = el("button", "fermer", "×");
-      fermer.title = "Fermer";
+      fermer.title = tr("close");
       fermer.addEventListener("click", () => hote.remove());
       tete.append(fermer);
       corps = document.createElement("div");
@@ -475,7 +476,7 @@
     const c = fenetre();
     c.append(el("div", "question", question));
     const a = el("div", "attente");
-    a.append(el("span", "roue"), el("span", null, "Réflexion en cours…"));
+    a.append(el("span", "roue"), el("span", null, tr("thinking")));
     c.append(a);
   }
 
@@ -498,7 +499,7 @@
   function montrerResultats(res) {
     if (rienAMontrer()) { hote?.remove(); return; }
     const i = questionALEcran(res);
-    montrerResultat(res.questions[i], res.questions.length > 1 ? `Question ${i + 1} / ${res.questions.length} de la page` : null);
+    montrerResultat(res.questions[i], res.questions.length > 1 ? tr("questionOfPage", i + 1, res.questions.length) : null);
     affichee = i;
   }
 
@@ -507,10 +508,10 @@
     const c = fenetre();
     if (position) c.append(el("div", "etiquette", position));
     c.append(el("div", "question", d.question));
-    if (affichage.indice) c.append(el("div", "etiquette", "Indice"), el("div", null, d.indice || "—"));
+    if (affichage.indice) c.append(el("div", "etiquette", tr("hint")), el("div", null, d.indice || "—"));
     if (affichage.reponse) {
       const r = d.reponse;
-      c.append(el("div", "etiquette", "Réponse"),
+      c.append(el("div", "etiquette", tr("answer")),
                el("div", "reponse", r ? (r.lettre && !new RegExp(`^\\s*${r.lettre}\\s*[.)\\-:]`, "i").test(r.texte) ? `${r.lettre}. ` : "") + r.texte : "—"));
     }
     // Ex. : image d'un autre site non lisible -> Claude a répondu sans la voir.
@@ -523,7 +524,8 @@
     try { r = await chrome.runtime.sendMessage({ type: "resultat" }); } catch { return; }
     if (!r) return;
     if (r.en_cours && r.en_cours_url === location.href) {
-      if (attente !== r.en_cours) { attente = r.en_cours; montrerAttente(r.en_cours); }
+      // Simple analyse de la page (moteur en ligne) : texte traduit ; vraie question : son énoncé.
+      if (attente !== r.en_cours) { attente = r.en_cours; montrerAttente(r.en_cours_question ? r.en_cours : tr("analyzingPage")); }
       return;
     }
     const attendait = attente !== null;
@@ -569,11 +571,18 @@
     clearInterval(sonde);
     removeEventListener("scroll", suivreDefilement);
     removeEventListener("resize", suivreDefilement);
-    hote?.remove();
     observateur.disconnect();
     clearInterval(verification);
     clearTimeout(minuteur);
     delete window.__qcmStream;
+    if (msg.raison === "inactif") {
+      // Arrêt automatique : on explique pourquoi, puis la fenêtre disparaît.
+      const c = fenetre();
+      c.append(el("div", null, tr("autoStopped")));
+      setTimeout(() => hote?.remove(), 15000);
+    } else {
+      hote?.remove();
+    }
   });
 
   window.__qcmStream = { relancer: () => { derniereSignature = ""; planifier(); } };

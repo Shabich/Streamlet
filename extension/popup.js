@@ -1,6 +1,15 @@
 const SERVEUR = "http://127.0.0.1:8765";
 const $ = (id) => document.getElementById(id);
 const envoyer = (msg) => chrome.runtime.sendMessage(msg);
+// Textes traduits (_locales/en et _locales/fr) : langue du navigateur, anglais par défaut.
+const t = (cle, ...valeurs) => chrome.i18n.getMessage(cle, valeurs.map(String));
+
+function traduirePage() {
+  document.documentElement.lang = chrome.i18n.getUILanguage();
+  for (const el of document.querySelectorAll("[data-i18n]")) el.textContent = t(el.dataset.i18n);
+  for (const el of document.querySelectorAll("[data-i18n-title]")) el.title = t(el.dataset.i18nTitle);
+  for (const el of document.querySelectorAll("[data-i18n-placeholder]")) el.placeholder = t(el.dataset.i18nPlaceholder);
+}
 
 async function poster(chemin, corps) {
   const r = await fetch(SERVEUR + chemin, {
@@ -11,39 +20,47 @@ async function poster(chemin, corps) {
   return r.json();
 }
 
-const AIDE_MODES = {
-  local: "Qwen, en local uniquement. Gratuit, rien ne sort de ta machine.",
-  auto: "Qwen d'abord ; Claude prend le relais si Qwen est trop lent, échoue ou est arrêté.",
-  claude: "Claude directement. Plus rapide, mais la question est envoyée à Anthropic.",
-};
-const AIDE_MODELES = {
-  haiku: "Haiku : le plus rapide et le plus léger. Indices parfois moins fins.",
-  sonnet: "Sonnet : rapide et largement suffisant pour des QCM.",
-  opus: "Opus : le plus fin, plus lent et consomme plus de quota.",
-};
+const AIDE_MODES = { local: "helpModeLocal", auto: "helpModeAuto", claude: "helpModeClaude" };
+const AIDE_MODELES = { haiku: "helpModelHaiku", sonnet: "helpModelSonnet", opus: "helpModelOpus" };
 const SOURCES = {
-  qwen: "· Qwen", qwen_reflexion_tronquee: "· Qwen (réflexion écourtée)",
-  claude_abonnement: "· Claude (abonnement)", claude_api: "· Claude (API)", claude: "· Claude",
+  qwen: "sourceQwen", qwen_reflexion_tronquee: "sourceQwenTruncated",
+  claude_abonnement: "sourceClaudeSubscription", claude_api: "sourceClaudeApi", claude: "sourceClaude",
 };
 
 // ---------- interrupteur de l'onglet ----------
+let ongletCourant = null, demandeEnCours = false;
+const majRappel = () => { $("rappel").hidden = !$("actif").checked; };
+
+// L'arrêt automatique (2 min sans question) peut couper l'onglet pendant que la popup est ouverte.
+async function verifierOnglet() {
+  if (!ongletCourant || demandeEnCours) return;
+  try {
+    const actif = (await envoyer({ type: "etat", tabId: ongletCourant })).actif;
+    if ($("actif").checked !== actif) { $("actif").checked = actif; majRappel(); }
+  } catch {}
+}
+
 async function initOnglet() {
   const [onglet] = await chrome.tabs.query({ active: true, currentWindow: true });
   const interrupteur = $("actif");
   let url;
   try { url = new URL(onglet.url); } catch {}
   if (!url || !/^https?:$/.test(url.protocol)) {
-    $("site").textContent = "page non compatible";
+    $("site").textContent = t("pageUnsupported");
     interrupteur.disabled = true;
     return;
   }
   $("site").textContent = url.host;
   await chrome.storage.session.remove("attente");
   interrupteur.checked = (await envoyer({ type: "etat", tabId: onglet.id })).actif;
+  ongletCourant = onglet.id;
+  majRappel();
 
   interrupteur.addEventListener("change", async () => {
     $("msg").textContent = "";
+    majRappel();
     if (!interrupteur.checked) { await envoyer({ type: "desactiver", tabId: onglet.id }); return; }
+    demandeEnCours = true;
     // Accès limité au site de cet onglet (demandé une seule fois par site).
     // Firefox n'accepte permissions.request que directement dans le clic : aucun « await » avant.
     // « attente » permet au service de fond de finir l'activation si la popup se ferme pendant la demande
@@ -54,16 +71,19 @@ async function initOnglet() {
       // Sans port : Firefox ignore les motifs d'adresse qui en contiennent un (ex. localhost:3000).
       permis = await chrome.permissions.request({ origins: [`${url.protocol}//${url.hostname}/*`] });
     } catch (e) {
-      $("msg").textContent = "Demande d'accès impossible : " + (e.message || e);
+      $("msg").textContent = t("accessRequestFailed", e.message || e);
     }
     await chrome.storage.session.remove("attente");
     if (!permis) {
+      demandeEnCours = false;
       interrupteur.checked = false;
-      if (!$("msg").textContent) $("msg").textContent = "Accès au site refusé.";
+      majRappel();
+      if (!$("msg").textContent) $("msg").textContent = t("siteAccessDenied");
       return;
     }
     const r = await envoyer({ type: "activer", tabId: onglet.id });
-    if (!r.ok) { interrupteur.checked = false; $("msg").textContent = "Injection impossible : " + r.erreur; }
+    demandeEnCours = false;
+    if (!r.ok) { interrupteur.checked = false; majRappel(); $("msg").textContent = t("injectionFailed", r.erreur); }
   });
 }
 
@@ -91,16 +111,16 @@ function initMoteur() {
     e.preventDefault();
     $("msg-claude").textContent = "";
     $("btn-connexion").disabled = true;
-    $("btn-connexion").textContent = "Vérification…";
+    $("btn-connexion").textContent = t("checking");
     try {
       const r = await poster("/claude/connexion", { cle: $("cle").value });
       if (r.ok) $("cle").value = "";
       else $("msg-claude").textContent = r.erreur;
     } catch {
-      $("msg-claude").textContent = "Serveur injoignable.";
+      $("msg-claude").textContent = t("serverUnreachable");
     }
     $("btn-connexion").disabled = false;
-    $("btn-connexion").textContent = "Connecter";
+    $("btn-connexion").textContent = t("connect");
     rafraichir();
   });
   $("btn-deconnexion").addEventListener("click", async () => {
@@ -111,7 +131,7 @@ function initMoteur() {
 
 function afficherMode(mode) {
   for (const b of document.querySelectorAll("#modes button")) b.classList.toggle("choisi", b.dataset.mode === mode);
-  $("aide-mode").textContent = AIDE_MODES[mode] || "";
+  $("aide-mode").textContent = AIDE_MODES[mode] ? t(AIDE_MODES[mode]) : "";
 }
 
 function afficherClaude(claude, mode) {
@@ -119,32 +139,31 @@ function afficherClaude(claude, mode) {
   for (const b of document.querySelectorAll("#acces button")) b.classList.toggle("choisi", b.dataset.acces === claude.acces);
   const c = parAbonnement ? claude.abonnement : claude.api;
   for (const b of document.querySelectorAll("#modeles button")) b.classList.toggle("choisi", b.dataset.modele === claude.famille);
-  $("aide-modele").textContent = AIDE_MODELES[claude.famille] || "";
+  $("aide-modele").textContent = AIDE_MODELES[claude.famille] ? t(AIDE_MODELES[claude.famille]) : "";
   const etat = document.createElement("span");
   etat.className = c.connecte ? "ok" : mode === "local" ? "aide" : "ko";
-  etat.textContent = c.connecte ? "connecté" : "non connecté";
+  etat.textContent = c.connecte ? t("connected") : t("notConnected");
   $("claude-etat").replaceChildren(etat);
 
   // Abonnement : passe par Claude Code, déjà connecté à ton compte claude.ai.
   $("claude-abonnement").hidden = !parAbonnement;
   if (parAbonnement) {
     $("claude-abonnement").textContent = c.connecte
-      ? `Via Claude Code, compris dans ton abonnement (sans frais au token, mais compte dans tes limites). ${c.appels} appel(s).`
-      : !c.installe
-        ? "Claude Code n'est pas installé : il faut l'installer pour utiliser ton abonnement."
-        : "Claude Code n'est pas connecté à ton abonnement : lance « claude » dans un terminal puis tape /login.";
+      ? t("subscriptionConnected", c.appels)
+      : !c.installe ? t("subscriptionNotInstalled") : t("subscriptionNotConnected");
   }
   // Clé API : formulaire de connexion, coût au token.
   $("claude-deconnecte").hidden = parAbonnement || c.connecte;
   $("claude-connecte").hidden = parAbonnement || !c.connecte;
   if (!parAbonnement && c.connecte) {
-    $("claude-cout").textContent = `${c.appels} appel(s) · ~${c.cout_dollars.toFixed(3)} $ depuis le lancement` +
-      (c.source === "environnement" ? " · clé via ANTHROPIC_API_KEY" : "");
+    $("claude-cout").textContent = t("apiCost", c.appels, c.cout_dollars.toFixed(3)) +
+      (c.source === "environnement" ? t("apiKeyFromEnv") : "");
     $("btn-deconnexion").hidden = c.source !== "trousseau";
   }
-  if (!c.connecte && mode === "claude") $("msg-claude").textContent = "Connecte Claude pour utiliser le mode en ligne.";
-  else if (!c.connecte && mode === "auto") $("msg-claude").textContent = "Sans Claude, le mode auto reste en local.";
-  else if ($("msg-claude").textContent.startsWith("Connecte") || $("msg-claude").textContent.startsWith("Sans")) $("msg-claude").textContent = "";
+  // Rappel affiché selon le moteur (marqué pour pouvoir l'effacer sans toucher aux messages d'erreur).
+  const rappel = !c.connecte && mode === "claude" ? t("connectForOnline") : !c.connecte && mode === "auto" ? t("autoWithoutClaude") : "";
+  if (rappel) { $("msg-claude").textContent = rappel; $("msg-claude").dataset.rappel = "1"; }
+  else if ($("msg-claude").dataset.rappel) { $("msg-claude").textContent = ""; delete $("msg-claude").dataset.rappel; }
 }
 
 // ---------- afficher l'indice / la réponse (préférence gardée dans l'extension) ----------
@@ -196,10 +215,10 @@ function afficherResultats() {
     titre.className = "question";
     titre.textContent = (qs.length > 1 ? `${i + 1}. ` : "") + q.question;
     c.append(titre);
-    if (affichage.indice) c.append(bloc("Indice " + (SOURCES[q.source] || ""), q.indice || "—", "indice"));
+    if (affichage.indice) c.append(bloc(t("hint") + (SOURCES[q.source] ? " " + t(SOURCES[q.source]) : ""), q.indice || "—", "indice"));
     if (affichage.reponse) {
       const r = q.reponse;
-      c.append(bloc("Réponse", r ? (r.lettre && !new RegExp(`^\\s*${r.lettre}\\s*[.)\\-:]`, "i").test(r.texte) ? `${r.lettre}. ` : "") + r.texte : "—", "reponse"));
+      c.append(bloc(t("answer"), r ? (r.lettre && !new RegExp(`^\\s*${r.lettre}\\s*[.)\\-:]`, "i").test(r.texte) ? `${r.lettre}. ` : "") + r.texte : "—", "reponse"));
     }
     return c;
   }));
@@ -210,7 +229,7 @@ async function rafraichir() {
   try {
     const e = await (await fetch(SERVEUR + "/etat", { signal: AbortSignal.timeout(4000) })).json();
     $("point").className = "point ok";
-    $("serveur").textContent = "serveur actif";
+    $("serveur").textContent = t("serverRunning");
     afficherMode(e.mode);
     afficherClaude(e.claude, e.mode);
     if (e.resultats?.questions?.length && e.resultats.id !== derniersResultats?.id) {
@@ -219,25 +238,22 @@ async function rafraichir() {
       appliquerAffichage();
     }
     $("encours").hidden = !e.en_cours;
-    $("encours").textContent = e.en_cours ? "Réflexion en cours : " + e.en_cours.slice(0, 80) + "…" : "";
-    $("pied").textContent = `${e.nb_qcm} QCM enregistré(s)` + (e.erreur ? ` · erreur : ${e.erreur}` : "");
+    $("encours").textContent = !e.en_cours ? "" : e.en_cours_question ? t("thinkingAbout", e.en_cours.slice(0, 80)) : t("analyzingPage");
+    $("pied").textContent = t("savedCount", e.nb_qcm) + (e.erreur ? t("errorSuffix", e.erreur) : "");
   } catch {
     $("point").className = "point ko";
-    $("serveur").textContent = "serveur arrêté";
-    $("pied").textContent = "Relance le script d'installation, ou voir « Gérer le serveur » dans le README.";
+    $("serveur").textContent = t("serverStopped");
+    $("pied").textContent = t("serverHelp");
   }
 }
 
 // ---------- Capture automatique des images illisibles (accès à tous les sites, sur demande) ----------
 const TOUS_LES_SITES = { origins: ["<all_urls>"] };
-const AIDE_CAPTURE = {
-  on: "Les images illisibles à l'écran sont capturées automatiquement.",
-  off: "Sinon : clic droit sur l'image › « Streamlet : lire cette image ». L'activer demande l'accès à tous les sites.",
-};
+const AIDE_CAPTURE = { on: "captureOn", off: "captureOff" };
 
 async function initCapture() {
   const inter = $("capture-auto");
-  const afficher = () => { $("aide-capture").textContent = inter.checked ? AIDE_CAPTURE.on : AIDE_CAPTURE.off; };
+  const afficher = () => { $("aide-capture").textContent = t(inter.checked ? AIDE_CAPTURE.on : AIDE_CAPTURE.off); };
   inter.checked = await chrome.permissions.contains(TOUS_LES_SITES);
   afficher();
   inter.addEventListener("change", async () => {
@@ -247,9 +263,10 @@ async function initCapture() {
   });
 }
 
+traduirePage();
 initOnglet();
 initMoteur();
 initAffichage();
 initCapture();
 rafraichir();
-setInterval(rafraichir, 1500);
+setInterval(() => { rafraichir(); verifierOnglet(); }, 1500);

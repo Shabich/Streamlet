@@ -529,7 +529,8 @@ class Serveur:
         self.derniere_page = None  # (éléments de la page, question) du dernier appel Claude
         self.file = queue.Queue(maxsize=1)  # garde seulement l'envoi le plus récent
         self.pages_vues = set()             # mode secours : pages déjà analysées
-        self.etat = {"en_cours": None, "en_cours_url": None, "dernier": None, "resultats": None, "erreur": None}
+        self.etat = {"en_cours": None, "en_cours_url": None, "en_cours_question": False, "dernier": None, "resultats": None,
+                     "erreur": None}
         if self.stockage.items:
             d = self.stockage.items[-1]
             self.etat["dernier"] = {"question": d["question"], "indice": d.get("indice", ""),
@@ -583,6 +584,7 @@ class Serveur:
                 print(f"[erreur] {self.etat['erreur']}")
             finally:
                 self.etat["en_cours"] = self.etat["en_cours_url"] = None
+                self.etat["en_cours_question"] = False
 
     # -- extraction --
     def depuis_page(self, p):
@@ -782,6 +784,7 @@ class Serveur:
             # En ligne, repérage et indices se font en un seul appel : on signale l'analyse dès maintenant
             # (l'extension affiche « Réflexion en cours… » sur la page).
             self.etat["en_cours"], self.etat["en_cours_url"] = "Analyse de la page…", url
+            self.etat["en_cours_question"] = False  # simple analyse : rien ne dit encore qu'il y a un quiz
             qcms = self.depuis_compacte(p) or []   # en ligne : Claude lit toute la page
         else:
             # Local : détection par règles dans l'extension, une question à la fois.
@@ -807,6 +810,7 @@ class Serveur:
             return self.affichable(ancien, elements, avertissement)
         if res is None:  # local : l'indice est demandé maintenant, si c'est bien une question
             self.etat["en_cours"], self.etat["en_cours_url"] = qcm["question"], url
+            self.etat["en_cours_question"] = True
             print(f"{h}  QCM détecté ({mode_detection}, moteur {self.mode}) : {qcm['question'][:70]} — réflexion…")
             res = self.indice(qcm)
         res = res or {"indice": "", "reponse": "", "source": "", "pensee": ""}

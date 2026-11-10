@@ -2,6 +2,12 @@
 // et relaie les QCM détectés vers le serveur local.
 const SERVEUR = "http://127.0.0.1:8765";
 
+// Arrêt automatique : un onglet sans question de quiz pendant 2 minutes est désactivé. Sécurité si on oublie
+// de couper Streamlet : sinon chaque nouvelle page serait envoyée à l'IA (tokens consommés pour rien).
+const DELAI_INACTIF = 2 * 60 * 1000;
+const GRACE_PAGE = 30 * 1000; // après une navigation : le temps que la nouvelle page soit analysée
+
+// onglets = { [tabId]: { vu: date de la dernière question vue (ou de l'activation) } }
 async function ongletsActifs() {
   return (await chrome.storage.session.get("onglets")).onglets || {};
 }
@@ -10,6 +16,9 @@ async function majOnglets(f) {
   f(o);
   await chrome.storage.session.set({ onglets: o });
 }
+
+const expire = (entree) => !!entree && Date.now() - (entree.vu || 0) > DELAI_INACTIF;
+const noterQuestion = (tabId) => majOnglets((o) => { if (o[tabId]) o[tabId].vu = Date.now(); });
 
 function badge(tabId, texte, couleur = "#16a34a") {
   chrome.action.setBadgeText({ tabId, text: texte }).catch(() => {});
@@ -67,7 +76,7 @@ async function decouper(bmp, echelle, { x, y, l, h }, vue) {
 // même sans l'accès à tous les sites.
 chrome.runtime.onInstalled.addListener(() => {
   chrome.contextMenus.removeAll(() => {
-    chrome.contextMenus.create({ id: "lire-image", title: "Streamlet : lire cette image", contexts: ["image"] });
+    chrome.contextMenus.create({ id: "lire-image", title: chrome.i18n.getMessage("menuReadImage"), contexts: ["image"] });
   });
 });
 
@@ -96,20 +105,26 @@ function enBase64(buffer) {
 }
 
 async function activer(tabId) {
-  await majOnglets((o) => { o[tabId] = true; });
+  await majOnglets((o) => { o[tabId] = { vu: Date.now() }; });
   return injecter(tabId);
 }
 
-async function desactiver(tabId) {
+// raison = "inactif" : arrêt automatique (la page affiche pourquoi Streamlet s'est coupé).
+async function desactiver(tabId, raison) {
   await majOnglets((o) => { delete o[tabId]; });
   badge(tabId, "");
-  try { await chrome.tabs.sendMessage(tabId, { type: "stop" }); } catch {}
+  try { await chrome.tabs.sendMessage(tabId, { type: "stop", raison }); } catch {}
   return { ok: true };
 }
 
-// Rechargement / navigation dans un onglet coché : on réinjecte.
+// Rechargement / navigation dans un onglet coché : on réinjecte (et on laisse le temps d'analyser la page).
 chrome.tabs.onUpdated.addListener(async (tabId, info) => {
-  if (info.status === "complete" && (await ongletsActifs())[tabId]) injecter(tabId);
+  if (info.status !== "complete") return;
+  const entree = (await ongletsActifs())[tabId];
+  if (!entree) return;
+  if (expire(entree)) return desactiver(tabId, "inactif");
+  await majOnglets((o) => { if (o[tabId]) o[tabId].vu = Math.max(o[tabId].vu || 0, Date.now() - DELAI_INACTIF + GRACE_PAGE); });
+  injecter(tabId);
 });
 chrome.tabs.onRemoved.addListener((tabId) => majOnglets((o) => { delete o[tabId]; }));
 
@@ -126,6 +141,7 @@ chrome.runtime.onMessage.addListener((msg, sender, repondre) => {
     const tabId = sender.tab?.id;
     ongletsActifs().then(async (o) => {
       if (!o[tabId]) return; // onglet non coché : on n'envoie rien
+      if (expire(o[tabId])) return desactiver(tabId, "inactif"); // pas de question depuis 2 min : rien n'est envoyé
       // Images que la page n'a pas pu lire elle-même (autre site) : capture d'écran en secours.
       if (msg.payload.compacte?.images?.some((i) => !i.data)) await joindreImages(sender.tab, msg.payload);
       fetch(SERVEUR + "/qcm", {
@@ -140,14 +156,20 @@ chrome.runtime.onMessage.addListener((msg, sender, repondre) => {
   }
   if (msg.type === "resultat") {
     // La page demande s'il y a un résultat à afficher (seulement depuis un onglet coché).
+    // Appelé toutes les 1,5 s par chaque onglet actif : sert aussi à repérer l'inactivité.
+    const tabId = sender.tab?.id;
     ongletsActifs().then(async (o) => {
-      if (!o[sender.tab?.id]) return repondre(null);
-      try {
-        const e = await (await fetch(SERVEUR + "/etat", { signal: AbortSignal.timeout(3000) })).json();
-        repondre({ en_cours: e.en_cours, en_cours_url: e.en_cours_url, resultats: e.resultats });
-      } catch {
-        repondre(null);
-      }
+      if (!o[tabId]) return repondre(null);
+      let e = null;
+      try { e = await (await fetch(SERVEUR + "/etat", { signal: AbortSignal.timeout(3000) })).json(); } catch {}
+      // Une question de quiz est sur cette page (résultat affiché) ou en cours de réflexion : on repousse l'arrêt.
+      const url = sender.url;
+      const question = e && ((e.en_cours_question && e.en_cours_url === url)
+                             || (e.resultats?.url === url && e.resultats.questions?.length));
+      if (question) await noterQuestion(tabId);
+      else if (expire(o[tabId])) { await desactiver(tabId, "inactif"); return repondre(null); }
+      repondre(e && { en_cours: e.en_cours, en_cours_url: e.en_cours_url, en_cours_question: e.en_cours_question,
+                      resultats: e.resultats });
     });
     return true;
   }

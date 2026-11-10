@@ -1,12 +1,14 @@
 <!doctype html>
-<html lang="fr">
+<html lang="en">
 <head>
 <meta charset="utf-8">
 <style>
   :root { --fond: #ffffff; --texte: #111827; --doux: #6b7280; --bord: #e5e7eb; --carte: #f9fafb;
-          --ok: #16a34a; --ko: #dc2626; --accent: #2563eb; }
+          --ok: #16a34a; --ko: #dc2626; --accent: #2563eb;
+          --rappel-fond: #fef3c7; --rappel-texte: #78350f; }
   @media (prefers-color-scheme: dark) {
-    :root { --fond: #18181b; --texte: #f4f4f5; --doux: #a1a1aa; --bord: #3f3f46; --carte: #27272a; }
+    :root { --fond: #18181b; --texte: #f4f4f5; --doux: #a1a1aa; --bord: #3f3f46; --carte: #27272a;
+            --rappel-fond: #422006; --rappel-texte: #fde68a; }
   }
   * { box-sizing: border-box; }
   [hidden] { display: none !important; }  /* sinon #carte { display: flex } annule l attribut hidden */
@@ -28,6 +30,8 @@
   input[type=checkbox]:checked { background: var(--ok); }
   input[type=checkbox]:checked::after { left: 18px; }
   input[type=checkbox]:disabled { opacity: .4; cursor: not-allowed; }
+  .rappel { margin-top: 8px; padding: 8px 10px; border-radius: 8px; font-size: 12px;
+            background: var(--rappel-fond); color: var(--rappel-texte); }
   .msg { margin-top: 8px; font-size: 12px; color: var(--ko); min-height: 0; }
   .carte { margin-top: 10px; padding: 10px; background: var(--carte); border-radius: 8px; }
   .etiquette { font-size: 11px; color: var(--doux); text-transform: uppercase; letter-spacing: .04em; }
@@ -67,23 +71,24 @@
 </style>
 </head>
 <body>
-  <h1><span class="marque"><img src="icons/icon-32.png" alt="">Streamlet</span> <span class="serveur"><span class="point" id="point"></span><span id="serveur">serveur…</span></span></h1>
+  <h1><span class="marque"><img src="icons/icon-32.png" alt="">Streamlet</span> <span class="serveur"><span class="point" id="point"></span><span id="serveur" data-i18n="serverChecking"></span></span></h1>
 
   <label class="interrupteur">
     <div>
-      <div>Streamer cette page</div>
+      <div data-i18n="streamThisPage"></div>
       <div class="site" id="site"></div>
     </div>
     <input type="checkbox" id="actif">
   </label>
+  <div class="rappel" id="rappel" data-i18n="reminderActive" hidden></div>
   <div class="msg" id="msg"></div>
 
   <div class="section">
-    <div class="etiquette">Moteur</div>
+    <div class="etiquette" data-i18n="engine"></div>
     <div class="segments" id="modes">
-      <button data-mode="local">Local</button>
-      <button data-mode="auto">Auto</button>
-      <button data-mode="claude">En ligne</button>
+      <button data-mode="local" data-i18n="engineLocal"></button>
+      <button data-mode="auto" data-i18n="engineAuto"></button>
+      <button data-mode="claude" data-i18n="engineOnline"></button>
     </div>
     <div class="aide" id="aide-mode"></div>
 
@@ -93,10 +98,10 @@
         <span id="claude-etat">…</span>
       </div>
       <div class="segments" id="acces">
-        <button data-acces="abonnement">Abonnement</button>
-        <button data-acces="api">Clé API</button>
+        <button data-acces="abonnement" data-i18n="accessSubscription"></button>
+        <button data-acces="api" data-i18n="accessApiKey"></button>
       </div>
-      <div class="segments" id="modeles" title="Modèle Claude utilisé">
+      <div class="segments" id="modeles" data-i18n-title="modelTitle">
         <button data-modele="haiku">Haiku</button>
         <button data-modele="sonnet">Sonnet</button>
         <button data-modele="opus">Opus</button>
@@ -105,33 +110,32 @@
       <div class="aide" id="claude-abonnement" hidden></div>
       <div id="claude-deconnecte" hidden>
         <form class="connexion" id="form-claude">
-          <input type="password" id="cle" placeholder="Clé API (sk-ant-…)" autocomplete="off">
-          <button class="bouton" type="submit" id="btn-connexion">Connecter</button>
+          <input type="password" id="cle" data-i18n-placeholder="apiKeyPlaceholder" autocomplete="off">
+          <button class="bouton" type="submit" id="btn-connexion" data-i18n="connect"></button>
         </form>
-        <div class="aide">Crée une clé sur <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a>.
-          Elle est rangée dans le trousseau du système, pas dans l'extension.</div>
+        <div class="aide"><span data-i18n="createKeyBefore"></span> <a href="https://console.anthropic.com/settings/keys" target="_blank">console.anthropic.com</a><span data-i18n="createKeyAfter"></span></div>
       </div>
       <div id="claude-connecte" hidden>
         <div class="ligne aide"><span id="claude-cout"></span>
-          <button class="bouton discret" id="btn-deconnexion">Déconnecter</button></div>
+          <button class="bouton discret" id="btn-deconnexion" data-i18n="disconnect"></button></div>
       </div>
       <div class="msg" id="msg-claude"></div>
     </div>
   </div>
 
   <div class="affichage">
-    <label class="petit-inter"><input type="checkbox" id="voir-notif"> Notification sur la page</label>
+    <label class="petit-inter"><input type="checkbox" id="voir-notif"> <span data-i18n="showNotification"></span></label>
   </div>
   <div class="affichage">
-    <label class="petit-inter"><input type="checkbox" id="voir-indice"> Afficher l'indice</label>
-    <label class="petit-inter"><input type="checkbox" id="voir-reponse"> Afficher la réponse</label>
+    <label class="petit-inter"><input type="checkbox" id="voir-indice"> <span data-i18n="showHint"></span></label>
+    <label class="petit-inter"><input type="checkbox" id="voir-reponse"> <span data-i18n="showAnswer"></span></label>
   </div>
 
   <div class="affichage">
-    <label class="petit-inter"><input type="checkbox" id="capture-auto"> Capturer les images illisibles</label>
+    <label class="petit-inter"><input type="checkbox" id="capture-auto"> <span data-i18n="captureImages"></span></label>
   </div>
   <div class="aide" id="aide-capture"></div>
-  <div class="note" id="note-notif" hidden>Les résultats s'affichent sur la page, en bas à droite.</div>
+  <div class="note" id="note-notif" data-i18n="resultsOnPage" hidden></div>
   <div class="encours" id="encours" hidden></div>
   <div id="carte" hidden></div>
 

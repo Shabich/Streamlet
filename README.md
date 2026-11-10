@@ -29,6 +29,7 @@
 - [Désinstallation](#désinstallation)
 - [Dépannage](#dépannage)
 - [Confidentialité](#confidentialité)
+- [Publier une version](#publier-une-version)
 
 ## Fonctionnement
 
@@ -84,20 +85,20 @@ Lance le script d'installation de ton système :
 ### Le questionnaire
 
 Le script te pose quelques questions pour n'installer que ce dont tu as besoin, puis s'occupe de tout.
-Appuie sur **Entrée** pour garder le choix recommandé.
+Appuie sur **Entrée** pour garder le choix par défaut (en gras).
 
 | # | Question | Choix possibles |
 |---|---|---|
-| 1 | **Quelle IA veux-tu utiliser ?** | **IA locale + Claude en secours** (recommandé) · IA locale uniquement · Claude uniquement (pas d'Ollama, rien de lourd à télécharger) |
-| 2 | **Quel modèle local ?** *(si IA locale)* | **`qwen3.5:4b`** (~4 Go) · `qwen3.5:2b` (plus léger) · un autre modèle Ollama de ton choix |
+| 1 | **Quelle IA veux-tu utiliser ?** | **Claude uniquement** (par défaut, rien de lourd à installer) · IA locale + Claude en secours · IA locale uniquement (Ollama, quelques Go) |
+| 2 | **Quel modèle local ?** *(si IA locale)* | **`qwen3.5:4b`** (par défaut, ~4 Go) · `qwen3.5:2b` (plus léger) · un autre modèle Ollama de ton choix |
 | 3 | **Comment accéder à Claude ?** *(si Claude)* | **ton abonnement claude.ai** via Claude Code (pas de frais en plus) · une clé API (payée à l'usage) |
 | 4 | **Comment faire tourner le serveur ?** | **Durable** · Éphémère (voir ci-dessous) |
 
 Avec l'abonnement, si Claude Code n'est pas installé ou pas connecté, le script propose de l'installer et
 d'ouvrir la page de connexion. Un récapitulatif s'affiche ensuite, et l'installation ne démarre qu'après ta confirmation.
 
-Le moteur de l'extension est réglé d'après tes réponses : **Auto** (IA locale + Claude), **Local** ou
-**En ligne**. Tu peux le changer à tout moment dans la popup, où se choisit aussi le modèle Claude
+Le moteur de l'extension est réglé d'après tes réponses : **En ligne** (Claude seul), **Auto** (IA locale + Claude)
+ou **Local**. Tu peux le changer à tout moment dans la popup, où se choisit aussi le modèle Claude
 (Haiku, Sonnet ou Opus, voir [Connecter Claude](#connecter-claude)).
 
 ### Durable ou éphémère ?
@@ -105,7 +106,7 @@ Le moteur de l'extension est réglé d'après tes réponses : **Auto** (IA local
 Streamlet a besoin d'un petit **serveur local** (`serveur_qcm.py`, port `8765`) qui fait le lien entre
 l'extension et l'IA. Il peut tourner de deux façons :
 
-| | **Durable** (recommandé) | **Éphémère** |
+| | **Durable** (par défaut) | **Éphémère** |
 |---|---|---|
 | Où tourne le serveur | en tâche de fond, sans fenêtre | dans le terminal où tu as lancé le script |
 | Fermer le terminal | ne l'arrête pas | **l'arrête** (comme Ctrl+C) |
@@ -140,14 +141,15 @@ Si tu passes une option, le script ne pose aucune question. C'est pratique pour 
 
 | macOS / Linux | Windows | Effet |
 |---|---|---|
-| `--oui` | `-Oui` | réglages recommandés (IA locale + Claude par abonnement, durable) |
-| `--ephemere` | `-Ephemere` | serveur éphémère au lieu de durable |
-| `--modele qwen3.5:2b` | `-Modele qwen3.5:2b` | autre modèle Ollama |
-| `--sans-ollama` | `-SansOllama` | sans IA locale : Claude uniquement |
-| `--claude api` | `-Claude api` | accès à Claude : `abonnement` (défaut), `api` ou `aucun` |
+| `--yes` (`--oui`) | `-Yes` (`-Oui`) | réglages par défaut (Claude par abonnement, sans IA locale, durable) |
+| `--lang en` | `-Lang en` | langue des messages (`en` ou `fr`, détectée automatiquement sinon) |
+| `--ephemeral` (`--ephemere`) | `-Ephemeral` (`-Ephemere`) | serveur éphémère au lieu de durable |
+| `--with-ollama` (`--avec-ollama`) | `-WithOllama` (`-AvecOllama`) | ajoute l'IA locale (Ollama + `qwen3.5:4b`) |
+| `--model qwen3.5:2b` (`--modele`) | `-Model qwen3.5:2b` (`-Modele`) | autre modèle Ollama (active l'IA locale) |
+| `--claude api` | `-Claude api` | accès à Claude : `subscription` (défaut), `api` ou `none` (ou `abonnement`, `aucun`) |
 
-Exemple : `./install-linux.sh --sans-ollama --claude api --ephemere`.
-Sans option, mais lancé sans clavier (par un autre programme, en CI…), le script prend aussi les réglages recommandés.
+Exemple : `./install-linux.sh --claude api --ephemeral`.
+Sans option, mais lancé sans clavier (par un autre programme, en CI…), le script prend aussi les réglages par défaut.
 
 <details>
 <summary>Installation manuelle (sans script)</summary>
@@ -184,14 +186,17 @@ Après une mise à jour du dépôt (`git pull`), clique sur ↻ dans la carte St
 3. Épingle Streamlet dans la barre d'outils (icône puzzle › roue dentée › Épingler à la barre d'outils).
 
 > **Firefox retire les extensions chargées ainsi à chaque redémarrage** : il faut refaire l'étape 2.
-> Il n'installe durablement que les extensions signées par Mozilla. Pour garder Streamlet :
-> - **Firefox Developer Edition ou Nightly** : dans `about:config`, passe `xpinstall.signatures.required` à `false`,
->   puis installe un paquet `.xpi` de l'extension (un zip du contenu de `extension/`, renommé en `.xpi`) depuis
->   `about:addons` › roue dentée › **Installer un module depuis un fichier…** ;
-> - **Firefox classique** : il faut un `.xpi` signé par Mozilla (via [addons.mozilla.org](https://addons.mozilla.org/developers/),
->   gratuit, publication facultative).
+> Il n'installe durablement que les extensions signées par Mozilla. Pour garder Streamlet, installe le `.xpi`
+> signé joint aux [Releases](../../releases) du dépôt (`about:addons` › roue dentée › **Installer un module
+> depuis un fichier…**). Sur Ubuntu, Firefox (en snap) ne voit que ton dossier personnel : copie d'abord le
+> `.xpi` dans `~/Téléchargements` si besoin.
+>
+> Sans `.xpi` signé, seules **Firefox Developer Edition** et **Nightly** gardent l'extension : dans `about:config`,
+> passe `xpinstall.signatures.required` à `false`, crée le paquet (`cd extension && zip -r ../streamlet.xpi .`)
+> et installe-le de la même façon.
 
-Après une mise à jour du dépôt, clique sur **Recharger** dans la carte Streamlet de `about:debugging`.
+Après une mise à jour du dépôt : installe le nouveau `.xpi` par-dessus l'ancien, ou, pour la version temporaire,
+clique sur **Recharger** dans la carte Streamlet de `about:debugging`.
 
 ## Gérer le serveur
 
@@ -248,6 +253,18 @@ Ctrl+C ou fermer le terminal l'arrête. À relancer à chaque fois que tu veux u
   <img src="docs/page-reflexion.png" alt="Pendant que l'IA réfléchit" width="49%">
   <img src="docs/page-indice.png" alt="L'indice et la réponse s'affichent" width="49%">
 </p>
+
+### Rappel et arrêt automatique
+
+Quand Streamlet est actif sur un onglet, la popup rappelle de le désactiver après le quiz : chaque nouvelle page
+de l'onglet est envoyée à l'IA, ce qui consomme des tokens avec Claude (quota d'abonnement ou crédits API).
+Par sécurité, **Streamlet se coupe tout seul après 2 minutes sans question de quiz** sur la page, et l'indique
+dans une petite fenêtre en bas à droite.
+
+### Langue
+
+L'extension s'affiche en anglais ou en français selon la langue du navigateur. Les scripts d'installation
+suivent la langue du système (option `--lang en|fr` / `-Lang en|fr` pour la forcer).
 
 ### La popup
 
@@ -369,3 +386,47 @@ Ollama se désinstalle comme une application classique.
 - En moteur **Local**, rien ne quitte ta machine. En **Auto** (secours) et **En ligne**, le contenu de la
   question (texte et éventuelles images) est envoyé à Anthropic.
 - Les fichiers `qcm.json` et `raisonnements.jsonl` restent sur ta machine et ne sont pas versionnés.
+
+## Publier une version
+
+*Pour les mainteneurs du dépôt.* Firefox n'installe durablement que les extensions signées par Mozilla :
+chaque version est donc signée, puis le fichier `.xpi` est joint à une Release GitHub.
+
+### Une seule fois : les clés de signature
+
+1. Crée un compte développeur sur [addons.mozilla.org](https://addons.mozilla.org/developers/) et accepte l'accord.
+2. Génère tes clés sur la [page des clés d'API](https://addons.mozilla.org/developers/addon/api/key/).
+3. Range-les dans un fichier `.env` à la racine du projet (ignoré par git, **ne jamais le commiter**) :
+
+   ```
+   WEB_EXT_API_KEY=user:12345:678
+   WEB_EXT_API_SECRET=ton-secret
+   ```
+
+En cas de fuite, révoque-les sur la même page et génères-en de nouvelles.
+
+### À chaque version
+
+1. Augmente `"version"` dans `extension/manifest.json` (ex. `1.0` → `1.0.1`) : Mozilla refuse deux envois
+   avec le même numéro.
+2. Commit et push du code.
+3. Signe l'extension (sans la publier sur le catalogue de Mozilla, vérification automatique en quelques minutes) :
+
+   ```bash
+   set -a; source .env; set +a
+   npx web-ext sign --source-dir extension --channel unlisted
+   ```
+
+   Le fichier signé arrive dans `web-ext-artifacts/` (ignoré par git).
+4. Crée la Release GitHub avec le même numéro que le manifest, et joins-y le `.xpi` :
+
+   ```bash
+   gh release create v1.0.1 web-ext-artifacts/streamlet-1.0.1.xpi --title "Streamlet 1.0.1" --notes "…"
+   ```
+
+Les utilisateurs de Firefox installent ce `.xpi` depuis la Release (`about:addons` › roue dentée ›
+**Installer un module depuis un fichier…**). Firefox ne le met pas à jour tout seul : il faut installer le
+nouveau `.xpi` par-dessus l'ancien, les réglages sont conservés.
+
+> L'identifiant `streamlet@streamlet.app` (`extension/manifest.json`) est lié au compte qui signe la première
+> version : il ne doit plus changer ensuite.

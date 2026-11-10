@@ -1,0 +1,191 @@
+{
+  "extDescription": {
+    "message": "Repère la question de QCM de l'onglet activé et demande un indice à une IA (locale avec Ollama, ou Claude)."
+  },
+  "menuReadImage": {
+    "message": "Streamlet : lire cette image"
+  },
+  "serverChecking": {
+    "message": "serveur…"
+  },
+  "serverRunning": {
+    "message": "serveur actif"
+  },
+  "serverStopped": {
+    "message": "serveur arrêté"
+  },
+  "serverHelp": {
+    "message": "Relance le script d'installation, ou voir « Gérer le serveur » dans le README."
+  },
+  "streamThisPage": {
+    "message": "Streamer cette page"
+  },
+  "pageUnsupported": {
+    "message": "page non compatible"
+  },
+  "accessRequestFailed": {
+    "message": "Demande d'accès impossible : $1"
+  },
+  "siteAccessDenied": {
+    "message": "Accès au site refusé."
+  },
+  "injectionFailed": {
+    "message": "Injection impossible : $1"
+  },
+  "engine": {
+    "message": "Moteur"
+  },
+  "engineLocal": {
+    "message": "Local"
+  },
+  "engineAuto": {
+    "message": "Auto"
+  },
+  "engineOnline": {
+    "message": "En ligne"
+  },
+  "helpModeLocal": {
+    "message": "Qwen, en local uniquement. Gratuit, rien ne sort de ta machine."
+  },
+  "helpModeAuto": {
+    "message": "Qwen d'abord ; Claude prend le relais si Qwen est trop lent, échoue ou est arrêté."
+  },
+  "helpModeClaude": {
+    "message": "Claude directement. Plus rapide, mais la question est envoyée à Anthropic."
+  },
+  "accessSubscription": {
+    "message": "Abonnement"
+  },
+  "accessApiKey": {
+    "message": "Clé API"
+  },
+  "modelTitle": {
+    "message": "Modèle Claude utilisé"
+  },
+  "helpModelHaiku": {
+    "message": "Haiku : le plus rapide et le plus léger. Indices parfois moins fins."
+  },
+  "helpModelSonnet": {
+    "message": "Sonnet : rapide et largement suffisant pour des QCM."
+  },
+  "helpModelOpus": {
+    "message": "Opus : le plus fin, plus lent et consomme plus de quota."
+  },
+  "connected": {
+    "message": "connecté"
+  },
+  "notConnected": {
+    "message": "non connecté"
+  },
+  "subscriptionConnected": {
+    "message": "Via Claude Code, compris dans ton abonnement (sans frais au token, mais compte dans tes limites). $1 appel(s)."
+  },
+  "subscriptionNotInstalled": {
+    "message": "Claude Code n'est pas installé : il faut l'installer pour utiliser ton abonnement."
+  },
+  "subscriptionNotConnected": {
+    "message": "Claude Code n'est pas connecté à ton abonnement : lance « claude auth login » dans un terminal."
+  },
+  "apiKeyPlaceholder": {
+    "message": "Clé API (sk-ant-…)"
+  },
+  "connect": {
+    "message": "Connecter"
+  },
+  "checking": {
+    "message": "Vérification…"
+  },
+  "serverUnreachable": {
+    "message": "Serveur injoignable."
+  },
+  "createKeyBefore": {
+    "message": "Crée une clé sur"
+  },
+  "createKeyAfter": {
+    "message": ". Elle est rangée dans le trousseau du système, pas dans l'extension."
+  },
+  "disconnect": {
+    "message": "Déconnecter"
+  },
+  "apiCost": {
+    "message": "$1 appel(s) · ~$2 $$ depuis le lancement"
+  },
+  "apiKeyFromEnv": {
+    "message": " · clé via ANTHROPIC_API_KEY"
+  },
+  "connectForOnline": {
+    "message": "Connecte Claude pour utiliser le moteur en ligne."
+  },
+  "autoWithoutClaude": {
+    "message": "Sans Claude, le moteur auto reste en local."
+  },
+  "showNotification": {
+    "message": "Notification sur la page"
+  },
+  "showHint": {
+    "message": "Afficher l'indice"
+  },
+  "showAnswer": {
+    "message": "Afficher la réponse"
+  },
+  "captureImages": {
+    "message": "Capturer les images illisibles"
+  },
+  "captureOn": {
+    "message": "Les images illisibles à l'écran sont capturées automatiquement."
+  },
+  "captureOff": {
+    "message": "Sinon : clic droit sur l'image › « Streamlet : lire cette image ». L'activer demande l'accès à tous les sites."
+  },
+  "resultsOnPage": {
+    "message": "Les résultats s'affichent sur la page, en bas à droite."
+  },
+  "thinkingAbout": {
+    "message": "Réflexion en cours : $1…"
+  },
+  "savedCount": {
+    "message": "$1 QCM enregistré(s)"
+  },
+  "errorSuffix": {
+    "message": " · erreur : $1"
+  },
+  "sourceQwen": {
+    "message": "· Qwen"
+  },
+  "sourceQwenTruncated": {
+    "message": "· Qwen (réflexion écourtée)"
+  },
+  "sourceClaudeSubscription": {
+    "message": "· Claude (abonnement)"
+  },
+  "sourceClaudeApi": {
+    "message": "· Claude (API)"
+  },
+  "sourceClaude": {
+    "message": "· Claude"
+  },
+  "hint": {
+    "message": "Indice"
+  },
+  "answer": {
+    "message": "Réponse"
+  },
+  "close": {
+    "message": "Fermer"
+  },
+  "thinking": {
+    "message": "Réflexion en cours…"
+  },
+  "questionOfPage": {
+    "message": "Question $1 / $2 de la page"
+  },
+  "reminderActive": {
+    "message": "Pense à désactiver Streamlet après ton quiz. Tant qu'il est actif, chaque nouvelle page de cet onglet est envoyée à l'IA : avec Claude, ça consomme le quota de ton abonnement ou des crédits API (tokens). Par sécurité, il se coupe tout seul après 2 minutes sans question."
+  },
+  "autoStopped": {
+    "message": "Streamlet s'est désactivé : aucune question de quiz depuis 2 minutes. Réactive-le depuis l'icône de l'extension si besoin."
+  },
+  "analyzingPage": {
+    "message": "Analyse de la page…"
+  }
+}
