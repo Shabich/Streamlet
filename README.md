@@ -16,7 +16,7 @@
 </p>
 
 > **À lire avant d'utiliser Streamlet.** Cette application est avant tout conçue pour faire du **benchmark de
-> modèles d'IA en conditions réelles**. Voir l'[avertissement](#avertissement) : l'auteur se dégage de tout usage
+> modèles d'IA en conditions réelles**. Voir l'[avertissement](#avertissement) : je me dégage de tout usage
 > qui s'apparenterait à de la triche.
 
 ---
@@ -100,6 +100,7 @@ Appuie sur **Entrée** pour garder le choix par défaut (en gras).
 | 2 | **Quel modèle local ?** *(si IA locale)* | **`qwen3.5:4b`** (par défaut, ~4 Go) · `qwen3.5:2b` (plus léger) · un autre modèle Ollama de ton choix |
 | 3 | **Comment accéder à Claude ?** *(si Claude)* | **ton abonnement claude.ai** via Claude Code (pas de frais en plus) · une clé API (payée à l'usage) |
 | 4 | **Comment faire tourner le serveur ?** | **Durable** · Éphémère (voir ci-dessous) |
+| 5 | **Ajouter l'extension à Firefox ?** *(si Firefox est installé)* | **Oui** : le script télécharge l'extension signée de la dernière Release et l'ouvre dans Firefox, il ne reste qu'à cliquer sur **Ajouter** · Non |
 
 Avec l'abonnement, si Claude Code n'est pas installé ou pas connecté, le script propose de l'installer et
 d'ouvrir la page de connexion. Un récapitulatif s'affiche ensuite, et l'installation ne démarre qu'après ta confirmation.
@@ -129,6 +130,7 @@ l'extension et l'IA. Il peut tourner de deux façons :
 3. *si abonnement Claude* : installe Claude Code et le connecte à ton compte, si tu l'as accepté ;
 4. crée l'environnement Python `.venv` et installe les dépendances de `requirements.txt` ;
 5. enregistre tes réglages (moteur et accès à Claude) ;
+   *si tu l'as accepté* : télécharge l'extension Firefox signée (dans ton dossier Téléchargements) et l'ouvre dans Firefox ;
 6. **durable** : installe le serveur en tâche de fond et le démarre ; tu peux fermer le terminal.
    **éphémère** : démarre le serveur dans le terminal ; il tourne tant que le terminal reste ouvert.
    La commande pour le relancer plus tard s'affiche avant le démarrage, puis de nouveau quand tu l'arrêtes
@@ -154,6 +156,7 @@ Si tu passes une option, le script ne pose aucune question. C'est pratique pour 
 | `--with-ollama` (`--avec-ollama`) | `-WithOllama` (`-AvecOllama`) | ajoute l'IA locale (Ollama + `qwen3.5:4b`) |
 | `--model qwen3.5:2b` (`--modele`) | `-Model qwen3.5:2b` (`-Modele`) | autre modèle Ollama (active l'IA locale) |
 | `--claude api` | `-Claude api` | accès à Claude : `subscription` (défaut), `api` ou `none` (ou `abonnement`, `aucun`) |
+| `--firefox` | `-Firefox` | télécharge l'extension Firefox signée et l'ouvre dans Firefox |
 
 Exemple : `./install-linux.sh --claude api --ephemeral`.
 Sans option, mais lancé sans clavier (par un autre programme, en CI…), le script prend aussi les réglages par défaut.

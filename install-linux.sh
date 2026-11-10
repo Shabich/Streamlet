@@ -9,6 +9,7 @@
 #   --with-ollama (--avec-ollama)    ajoute l'IA locale / add the local AI (Ollama)
 #   --model qwen3.5:2b (--modele)    modèle Ollama / Ollama model (implies --with-ollama)
 #   --claude subscription|api|none   accès à Claude / Claude access (abonnement|api|aucun)
+#   --firefox                        installe aussi l'extension dans Firefox / also install the extension in Firefox
 set -euo pipefail
 
 # ---------- Langue / language ----------
@@ -33,6 +34,7 @@ CLAUDE_ACCES="abonnement"     # abonnement | api | aucun
 INSTALLER_CLAUDE_CODE=0
 CONNECTER_CLAUDE_CODE=0
 EPHEMERE=0
+INSTALLER_FIREFOX=0
 QUESTIONNAIRE=1
 ECRIRE_CONFIG=0
 
@@ -44,6 +46,7 @@ while [[ $# -gt 0 ]]; do
     --yes|--oui|-y) ECRIRE_CONFIG=1; shift ;;
     --ephemeral|--ephemere|--éphémère) EPHEMERE=1; shift ;;
     --with-ollama|--avec-ollama) AVEC_OLLAMA=1; shift ;;
+    --firefox) INSTALLER_FIREFOX=1; shift ;;
     --without-ollama|--sans-ollama) AVEC_OLLAMA=0; shift ;;
     --model|--modele) MODELE="${2:?$(L "--modele attend un nom de modèle" "--model needs a model name")}"; AVEC_OLLAMA=1; shift 2 ;;
     --claude)
@@ -90,6 +93,11 @@ installer_paquets() {
     return 1
   fi
 }
+
+firefox_present() { command -v firefox >/dev/null 2>&1; }
+# Dossier Téléchargements de l'utilisateur : Firefox en snap (Ubuntu) ne voit pas /tmp.
+dossier_telechargements() { local d; d="$(xdg-user-dir DOWNLOAD 2>/dev/null || true)"; [[ -n "$d" && "$d" != "$HOME" ]] || d="$HOME/Downloads"; mkdir -p "$d"; echo "$d"; }
+ouvrir_dans_firefox() { nohup firefox "$1" >/dev/null 2>&1 & }
 
 # curl sert à télécharger Ollama et Claude Code (absent de certaines installations minimales).
 if ! command -v curl >/dev/null 2>&1; then
@@ -188,6 +196,13 @@ if [[ $QUESTIONNAIRE == 1 ]]; then
     "$(L "Éphémère : dans ce terminal, il s'arrête quand tu le fermes (à relancer à chaque fois)" \
          "Ephemeral: in this terminal, it stops when you close it (start it again each time)")"
   if [[ $REPONSE == 2 ]]; then EPHEMERE=1; else EPHEMERE=0; fi
+
+  if firefox_present; then
+    echo
+    if oui_non "$(L "Firefox est installé : y ajouter l'extension Streamlet (version signée) ?" "Firefox is installed: add the Streamlet extension to it (signed version)?")"; then
+      INSTALLER_FIREFOX=1
+    fi
+  fi
 fi
 
 # Moteur par défaut de l'extension, d'après les choix
@@ -212,6 +227,7 @@ if [[ $QUESTIONNAIRE == 1 ]]; then
   echo "  $(L "Moteur" "Engine")    : $MOTEUR"
   if [[ $EPHEMERE == 1 ]]; then echo "  $(L "Serveur" "Server ")   : $(L "éphémère (dans ce terminal)" "ephemeral (in this terminal)")"
   else echo "  $(L "Serveur" "Server ")   : $(L "durable (tâche de fond)" "persistent (background)")"; fi
+  if [[ $INSTALLER_FIREFOX == 1 ]]; then echo "  Firefox   : $(L "extension téléchargée et ouverte dans Firefox" "extension downloaded and opened in Firefox")"; fi
   echo
   oui_non "$(L "Lancer l'installation ?" "Start the installation?")" || { L "Installation annulée." "Installation cancelled."; echo; exit 0; }
 fi
@@ -339,6 +355,40 @@ f.parent.mkdir(parents=True, exist_ok=True)
 f.write_text(json.dumps(config))
 EOF
   ok "$(L "Réglages enregistrés (moteur $MOTEUR), modifiables à tout moment dans la popup" "Settings saved ($MOTEUR engine), you can change them anytime in the popup")"
+fi
+
+# ---------- Extension Firefox (version signée de la Release GitHub) ----------
+if [[ $INSTALLER_FIREFOX == 1 ]]; then
+  if ! firefox_present; then
+    avert "$(L "Firefox introuvable : extension non installée." "Firefox not found: extension not installed.")"
+  else
+    VERSION_EXT="$("$PY" -c 'import json; print(json.load(open("extension/manifest.json"))["version"])')"
+    DEPOT="$(git remote get-url origin 2>/dev/null | sed -nE 's#^(https://github.com/|git@github.com:)([^/]+/[^/.]+)(\.git)?/?$#\2#p')"
+    DEPOT="${DEPOT:-Shabich/Streamlet}"
+    DOSSIER_XPI="$(dossier_telechargements)"
+    XPI="$DOSSIER_XPI/streamlet-$VERSION_EXT.xpi"
+    info "$(L "Téléchargement de l'extension signée ${VERSION_EXT}…" "Downloading the signed extension ${VERSION_EXT}…")"
+    if ! curl -fsSL -o "$XPI" "https://github.com/$DEPOT/releases/download/v$VERSION_EXT/streamlet-$VERSION_EXT.xpi"; then
+      # Pas de Release pour cette version (code plus récent que la dernière publication) : on prend la dernière.
+      LIEN="$(curl -fsSL "https://api.github.com/repos/$DEPOT/releases/latest" 2>/dev/null | "$PY" -c '
+import json, sys
+try:
+    print(next(a["browser_download_url"] for a in json.load(sys.stdin)["assets"] if a["name"].endswith(".xpi")))
+except Exception:
+    pass')"
+      XPI="$DOSSIER_XPI/streamlet.xpi"
+      [[ -n "$LIEN" ]] && curl -fsSL -o "$XPI" "$LIEN" || XPI=""
+    fi
+    # Vérification : une archive valide, signée par Mozilla.
+    if [[ -n "$XPI" ]] && "$PY" -c 'import sys, zipfile; z = zipfile.ZipFile(sys.argv[1]); sys.exit(0 if "META-INF/mozilla.rsa" in z.namelist() else 1)' "$XPI" 2>/dev/null; then
+      ok "$(L "Extension téléchargée" "Extension downloaded") : $XPI"
+      ouvrir_dans_firefox "$XPI"
+      info "$(L "Dans Firefox, clique sur « Ajouter » pour installer Streamlet (elle se mettra ensuite à jour toute seule)." "In Firefox, click “Add” to install Streamlet (it then updates itself).")"
+    else
+      if [[ -n "$XPI" && -f "$XPI" ]]; then rm -f -- "$XPI"; fi  # fichier invalide : on ne le laisse pas traîner
+      avert "$(L "Impossible de récupérer l'extension signée : installe-la depuis https://github.com/$DEPOT/releases" "Could not get the signed extension: install it from https://github.com/$DEPOT/releases")"
+    fi
+  fi
 fi
 
 # ---------- Serveur ----------

@@ -7,6 +7,7 @@
 #   -WithOllama (-AvecOllama)           ajoute l'IA locale / add the local AI (Ollama)
 #   -Model qwen3.5:2b (-Modele)         modèle Ollama / Ollama model (implies -WithOllama)
 #   -Claude subscription|api|none       accès à Claude / Claude access (abonnement|api|aucun)
+#   -Firefox                            installe aussi l'extension dans Firefox / also install the extension in Firefox
 param(
     [ValidateSet("en", "fr")][Alias("Langue")][string]$Lang,
     [Alias("Oui")][switch]$Yes,
@@ -14,7 +15,8 @@ param(
     [Alias("AvecOllama")][switch]$WithOllama,
     [Alias("SansOllama")][switch]$WithoutOllama,
     [Alias("Modele")][string]$Model,
-    [ValidateSet("subscription", "api", "none", "abonnement", "aucun")][string]$Claude
+    [ValidateSet("subscription", "api", "none", "abonnement", "aucun")][string]$Claude,
+    [switch]$Firefox
 )
 # "Continue" : sous Windows PowerShell 5.1, "Stop" fait planter le script dès qu'un programme externe écrit
 # sur stderr redirigé. Les erreurs sont vérifiées une par une ($LASTEXITCODE, -ErrorAction Stop).
@@ -44,6 +46,7 @@ if ($WithoutOllama) { $avecOllama = $false }
 $Modele = if ($Model) { $Model } else { "qwen3.5:4b" }
 $claudeAcces = if (-not $Claude -or $Claude -eq "subscription") { "abonnement" } elseif ($Claude -eq "none") { "aucun" } else { $Claude }
 $Ephemere = [bool]$Ephemeral
+$installerFirefox = [bool]$Firefox
 $installerClaudeCode = $false
 $connecterClaudeCode = $false
 $autres = @($PSBoundParameters.Keys | Where-Object { $_ -ne "Lang" })
@@ -68,6 +71,12 @@ function Choix([string]$question, [string[]]$options) {
 function OuiNon([string]$question) {
     $r = Read-Host "$question $(L '[O/n]' '[Y/n]')"
     return -not ($r -match '^[nN]')
+}
+function FirefoxExe {
+    foreach ($d in @($env:ProgramFiles, ${env:ProgramFiles(x86)}, (Join-Path $env:LOCALAPPDATA "Programs"))) {
+        if ($d -and (Test-Path (Join-Path $d "Mozilla Firefox\firefox.exe"))) { return (Join-Path $d "Mozilla Firefox\firefox.exe") }
+    }
+    return $null
 }
 function ClaudeCode {
     $c = Get-Command claude -ErrorAction SilentlyContinue
@@ -136,6 +145,11 @@ if ($questionnaire) {
         (L "Éphémère : dans ce terminal, il s'arrête quand tu le fermes (à relancer à chaque fois)" `
            "Ephemeral: in this terminal, it stops when you close it (start it again each time)"))
     $Ephemere = ($r -eq 2)
+
+    if (FirefoxExe) {
+        Write-Host ""
+        $installerFirefox = OuiNon (L "Firefox est installé : y ajouter l'extension Streamlet (version signée) ?" "Firefox is installed: add the Streamlet extension to it (signed version)?")
+    }
 }
 
 # Moteur par défaut de l'extension, d'après les choix
@@ -158,6 +172,7 @@ if ($questionnaire) {
     }
     Write-Host ("  " + (L "Moteur" "Engine") + "    : $moteur")
     Write-Host ("  " + (L "Serveur" "Server ") + "   : " + $(if ($Ephemere) { L "éphémère (dans ce terminal)" "ephemeral (in this terminal)" } else { L "durable (tâche de fond)" "persistent (background)" }))
+    if ($installerFirefox) { Write-Host ("  Firefox   : " + (L "extension téléchargée et ouverte dans Firefox" "extension downloaded and opened in Firefox")) }
     Write-Host ""
     if (-not (OuiNon (L "Lancer l'installation ?" "Start the installation?"))) { Write-Host (L "Installation annulée." "Installation cancelled."); exit 0 }
 }
@@ -279,6 +294,52 @@ f.write_text(json.dumps(config))
     Remove-Item $fichierCode -ErrorAction SilentlyContinue
     if ($LASTEXITCODE -ne 0) { Ko (L "Échec de l'enregistrement des réglages" "Could not save the settings") }
     Ok (L "Réglages enregistrés (moteur $moteur), modifiables à tout moment dans la popup" "Settings saved ($moteur engine), you can change them anytime in the popup")
+}
+
+# ---------- Extension Firefox (version signée de la Release GitHub) ----------
+if ($installerFirefox) {
+    $ff = FirefoxExe
+    if (-not $ff) {
+        Avert (L "Firefox introuvable : extension non installée." "Firefox not found: extension not installed.")
+    } else {
+        $versionExt = (Get-Content -Raw -Encoding UTF8 (Join-Path $PSScriptRoot "extension\manifest.json") | ConvertFrom-Json).version
+        $depot = "Shabich/Streamlet"
+        $origine = (git remote get-url origin 2>$null)
+        if ($origine -match 'github\.com[:/]([^/]+/[^/.]+?)(\.git)?/?$') { $depot = $Matches[1] }
+        $dossierXpi = Join-Path $env:USERPROFILE "Downloads"
+        New-Item -ItemType Directory -Force -Path $dossierXpi | Out-Null
+        $xpi = Join-Path $dossierXpi "streamlet-$versionExt.xpi"
+        Info ((L "Téléchargement de l'extension signée" "Downloading the signed extension") + " $versionExt…")
+        try {
+            Invoke-WebRequest -UseBasicParsing -Uri "https://github.com/$depot/releases/download/v$versionExt/streamlet-$versionExt.xpi" -OutFile $xpi -ErrorAction Stop
+        } catch {
+            # Pas de Release pour cette version (code plus récent que la dernière publication) : on prend la dernière.
+            $xpi = Join-Path $dossierXpi "streamlet.xpi"
+            try {
+                $derniere = Invoke-RestMethod -Uri "https://api.github.com/repos/$depot/releases/latest" -ErrorAction Stop
+                $lien = ($derniere.assets | Where-Object { $_.name -like "*.xpi" } | Select-Object -First 1).browser_download_url
+                if ($lien) { Invoke-WebRequest -UseBasicParsing -Uri $lien -OutFile $xpi -ErrorAction Stop } else { $xpi = $null }
+            } catch { $xpi = $null }
+        }
+        # Vérification : une archive valide, signée par Mozilla.
+        $signe = $false
+        if ($xpi -and (Test-Path $xpi)) {
+            try {
+                Add-Type -AssemblyName System.IO.Compression.FileSystem
+                $zip = [System.IO.Compression.ZipFile]::OpenRead($xpi)
+                $signe = [bool]($zip.Entries | Where-Object { $_.FullName -eq "META-INF/mozilla.rsa" })
+                $zip.Dispose()
+            } catch { $signe = $false }
+        }
+        if ($signe) {
+            Ok ((L "Extension téléchargée" "Extension downloaded") + " : $xpi")
+            Start-Process -FilePath $ff -ArgumentList "`"$xpi`""
+            Info (L "Dans Firefox, clique sur « Ajouter » pour installer Streamlet (elle se mettra ensuite à jour toute seule)." "In Firefox, click “Add” to install Streamlet (it then updates itself).")
+        } else {
+            if ($xpi -and (Test-Path $xpi)) { Remove-Item -LiteralPath $xpi -ErrorAction SilentlyContinue }
+            Avert ((L "Impossible de récupérer l'extension signée : installe-la depuis" "Could not get the signed extension: install it from") + " https://github.com/$depot/releases")
+        }
+    }
 }
 
 # ---------- Serveur ----------

@@ -102,6 +102,7 @@ Press **Enter** to keep the default choice (in bold).
 | 2 | **Which local model?** *(if local AI)* | **`qwen3.5:4b`** (default, ~4 GB) · `qwen3.5:2b` (lighter) · any other Ollama model |
 | 3 | **How do you want to access Claude?** *(if Claude)* | **your claude.ai subscription** via Claude Code (no extra cost) · an API key (pay as you go) |
 | 4 | **How should the server run?** | **Persistent** · Ephemeral (see below) |
+| 5 | **Add the extension to Firefox?** *(if Firefox is installed)* | **Yes**: the script downloads the signed extension from the latest Release and opens it in Firefox, you just click **Add** · No |
 
 With the subscription, if Claude Code is not installed or not signed in, the script offers to install it and
 open the sign-in page. A summary is shown next, and installation only starts once you confirm.
@@ -131,6 +132,7 @@ It can run in two ways:
 3. *if Claude subscription*: installs Claude Code and signs it in to your account, if you agreed;
 4. creates the Python environment `.venv` and installs the dependencies from `requirements.txt`;
 5. saves your settings (engine and Claude access);
+   *if you agreed*: downloads the signed Firefox extension (to your Downloads folder) and opens it in Firefox;
 6. **persistent**: installs the server as a background service and starts it; you can close the terminal.
    **ephemeral**: starts the server in the terminal; it runs as long as the terminal stays open.
    The command to start it again later is shown before it starts, and again when you stop it with Ctrl+C,
@@ -156,6 +158,7 @@ If you pass an option, the script asks no questions. Handy to automate an instal
 | `--with-ollama` | `-WithOllama` | add the local AI (Ollama + `qwen3.5:4b`) |
 | `--model qwen3.5:2b` | `-Model qwen3.5:2b` | another Ollama model (turns on the local AI) |
 | `--claude api` | `-Claude api` | Claude access: `subscription` (default), `api` or `none` |
+| `--firefox` | `-Firefox` | download the signed Firefox extension and open it in Firefox |
 
 Example: `./install-linux.sh --claude api --ephemeral`.
 With no option but no keyboard either (run by another program, in CI…), the script also uses the default settings.
