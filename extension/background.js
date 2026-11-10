@@ -1,6 +1,8 @@
 // Service worker : garde la liste des onglets cochés, y injecte content.js,
 // et relaie les QCM détectés vers le serveur local.
 const SERVEUR = "http://127.0.0.1:8765";
+// Langue du navigateur, transmise au serveur pour qu'il réponde dans la même langue.
+const LANGUE = chrome.i18n.getUILanguage().toLowerCase().startsWith("fr") ? "fr" : "en";
 
 // Arrêt automatique : un onglet sans question de quiz pendant 2 minutes est désactivé. Sécurité si on oublie
 // de couper Streamlet : sinon chaque nouvelle page serait envoyée à l'IA (tokens consommés pour rien).
@@ -146,7 +148,7 @@ chrome.runtime.onMessage.addListener((msg, sender, repondre) => {
       if (msg.payload.compacte?.images?.some((i) => !i.data)) await joindreImages(sender.tab, msg.payload);
       fetch(SERVEUR + "/qcm", {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
+        headers: { "Content-Type": "application/json", "X-Streamlet-Lang": LANGUE },
         body: JSON.stringify(msg.payload),
       })
         .then(() => badge(tabId, "ON"))
@@ -161,7 +163,7 @@ chrome.runtime.onMessage.addListener((msg, sender, repondre) => {
     ongletsActifs().then(async (o) => {
       if (!o[tabId]) return repondre(null);
       let e = null;
-      try { e = await (await fetch(SERVEUR + "/etat", { signal: AbortSignal.timeout(3000) })).json(); } catch {}
+      try { e = await (await fetch(SERVEUR + "/etat", { signal: AbortSignal.timeout(3000), headers: { "X-Streamlet-Lang": LANGUE } })).json(); } catch {}
       // Une question de quiz est sur cette page (résultat affiché) ou en cours de réflexion : on repousse l'arrêt.
       const url = sender.url;
       const question = e && ((e.en_cours_question && e.en_cours_url === url)

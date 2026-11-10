@@ -40,6 +40,7 @@
   .encours { color: var(--accent); font-size: 12px; margin-top: 6px; }
   .pied { margin-top: 10px; font-size: 11px; color: var(--doux); }
   .section { margin-top: 12px; }
+  .sous-titre { margin-top: 10px; }
   .segments { display: flex; margin-top: 4px; border: 1px solid var(--bord); border-radius: 8px; overflow: hidden; }
   .segments button { flex: 1; padding: 6px 0; border: 0; background: transparent; color: var(--texte);
                      font: inherit; cursor: pointer; }
@@ -91,6 +92,15 @@
       <button data-mode="claude" data-i18n="engineOnline"></button>
     </div>
     <div class="aide" id="aide-mode"></div>
+
+    <div id="bloc-reflexion" hidden>
+      <div class="etiquette sous-titre" data-i18n="reasoning"></div>
+      <div class="segments" id="reflexions">
+        <button data-reflexion="rapide" data-i18n="reasoningFast"></button>
+        <button data-reflexion="normale" data-i18n="reasoningNormal"></button>
+      </div>
+      <div class="aide" id="aide-reflexion"></div>
+    </div>
 
     <div class="claude">
       <div class="ligne">

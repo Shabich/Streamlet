@@ -290,9 +290,10 @@ if [[ $ECRIRE_CONFIG == 1 ]]; then
   .venv/bin/python - "$MOTEUR" "$ACCES_CONFIG" <<'EOF'
 import json, sys
 from pathlib import Path
-f = Path.home() / ".shabcode" / "qcm_config.json"
+f = Path.home() / ".streamlet" / "config.json"
+ancien = Path.home() / ".shabcode" / "qcm_config.json"   # versions 1.0 et avant
 try:
-    config = json.loads(f.read_text())
+    config = json.loads((f if f.exists() else ancien).read_text())
 except (OSError, ValueError):
     config = {}
 config.update(mode=sys.argv[1], acces_claude=sys.argv[2])

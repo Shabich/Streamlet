@@ -153,7 +153,7 @@
     "message": "· Qwen"
   },
   "sourceQwenTruncated": {
-    "message": "· Qwen (reasoning cut short)"
+    "message": "· Qwen (reasoning capped)"
   },
   "sourceClaudeSubscription": {
     "message": "· Claude (subscription)"
@@ -187,5 +187,26 @@
   },
   "analyzingPage": {
     "message": "Reading the page…"
+  },
+  "reasoning": {
+    "message": "Local AI reasoning"
+  },
+  "reasoningFast": {
+    "message": "Fast ~3 s"
+  },
+  "reasoningNormal": {
+    "message": "Normal ~25 s"
+  },
+  "helpReasoningFast": {
+    "message": "The answer only, in a few seconds, without thinking it through: no hint (they are unreliable without reasoning). Less reliable on tricky or multi-step questions."
+  },
+  "helpReasoningNormal": {
+    "message": "Qwen reasons for up to 20 seconds, then gives a hint and the answer: slower, but safer."
+  },
+  "fastNoHint": {
+    "message": "Fast mode: no hint, just the answer. Turn on “Show the answer”, or switch reasoning to Normal to get a hint."
+  },
+  "sourceQwenFast": {
+    "message": "· Qwen (fast)"
   }
 }

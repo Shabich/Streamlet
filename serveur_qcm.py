@@ -23,7 +23,7 @@ Usage :
   python serveur_qcm.py --modele qwen3.5:4b --delai-local 90 --port 8765
   python serveur_qcm.py --installer      # en tâche de fond (macOS, Linux, Windows) : démarre avec la session
   python serveur_qcm.py --desinstaller   # arrête et retire la tâche de fond
-Journal de la tâche de fond : ~/.shabcode/serveur_qcm.log
+Réglages et journal : ~/.streamlet/ (config.json, serveur.log)
 """
 import argparse, hashlib, json, os, queue, shutil, subprocess, sys, tempfile, threading, time
 from datetime import datetime, timedelta
@@ -35,9 +35,49 @@ import keyring
 import ollama
 
 ICI = Path(__file__).resolve().parent
-FICHIER_CONFIG = Path.home() / ".shabcode" / "qcm_config.json"
-TROUSSEAU = ("shabcode-qcm", "claude-api-key")  # (service, compte) dans le trousseau du système
+DOSSIER = Path.home() / ".streamlet"            # réglages et journal
+FICHIER_CONFIG = DOSSIER / "config.json"
+TROUSSEAU = ("streamlet", "claude-api-key")     # (service, compte) dans le trousseau du système
+# Anciens noms (versions 1.0 et avant) : repris automatiquement au premier lancement.
+ANCIEN_CONFIG = Path.home() / ".shabcode" / "qcm_config.json"
+ANCIEN_TROUSSEAU = ("shabcode-qcm", "claude-api-key")
+
+
+def migrer_anciens_reglages():
+    """Copie (sans les supprimer) la config et la clé API enregistrées sous les anciens noms.
+    Les anciens restent en place : une autre copie du projet qui les utilise continue de fonctionner."""
+    if not FICHIER_CONFIG.exists() and ANCIEN_CONFIG.exists():
+        DOSSIER.mkdir(parents=True, exist_ok=True)
+        FICHIER_CONFIG.write_text(ANCIEN_CONFIG.read_text())
+    try:
+        if keyring.get_password(*TROUSSEAU) is None:
+            ancienne = keyring.get_password(*ANCIEN_TROUSSEAU)
+            if ancienne:
+                keyring.set_password(*TROUSSEAU, ancienne)
+    except keyring.errors.KeyringError:
+        pass  # pas de trousseau (certains Linux) : la clé passera par ANTHROPIC_API_KEY
 MODES = ("local", "auto", "claude")
+REFLEXIONS = ("rapide", "normale")   # IA locale : sans réflexion (~3 s) ou réflexion plafonnée (~25 s)
+
+# Langue des messages renvoyés à l'extension : celle du navigateur, transmise à chaque requête
+# (en-tête X-Streamlet-Lang). Le journal du serveur, lui, reste en français.
+LANGUE = {"actuelle": "en"}
+
+
+def M(fr, en):
+    """Message pour l'utilisateur, dans la langue de son navigateur."""
+    return fr if LANGUE["actuelle"] == "fr" else en
+
+# Réflexion « rapide » : la réponse seule. Sans réflexion, les indices de Qwen sont souvent inventés : on n'en demande pas.
+PROMPT_REPONSE = """Voici une question de QCM.
+
+Question : {question}
+Choix :
+{choix}
+
+Réponds uniquement avec ce JSON : {{"reponse": "texte exact du bon choix"}}"""
+SCHEMA_REPONSE = {"type": "object", "properties": {"reponse": {"type": "string"}},
+                  "required": ["reponse"], "additionalProperties": False}
 
 PROMPT_INDICE = """Voici une question de QCM.
 
@@ -352,20 +392,20 @@ class ClaudeAPI:
         """Vérifie la clé (sans consommer de tokens) puis la range dans le trousseau. Renvoie une erreur ou None."""
         cle = (cle or "").strip()
         if not cle.startswith("sk-ant-"):
-            return "Ce n'est pas une clé API Claude (elle commence par sk-ant-)."
+            return M("Ce n'est pas une clé API Claude (elle commence par sk-ant-).", "This is not a Claude API key (it starts with sk-ant-).")
         client = anthropic.Anthropic(api_key=cle)
         try:
             client.models.retrieve(self.modele)
         except anthropic.AuthenticationError:
-            return "Clé refusée par Anthropic."
+            return M("Clé refusée par Anthropic.", "Key rejected by Anthropic.")
         except anthropic.PermissionDeniedError:
-            return "Cette clé n'a pas les droits nécessaires."
+            return M("Cette clé n'a pas les droits nécessaires.", "This key does not have the required permissions.")
         except anthropic.NotFoundError:
-            return f"Le modèle {self.modele} n'est pas accessible avec cette clé."
+            return M(f"Le modèle {self.modele} n'est pas accessible avec cette clé.", f"The {self.modele} model is not available with this key.")
         except anthropic.APIConnectionError:
-            return "Impossible de joindre Anthropic (connexion Internet ?)."
+            return M("Impossible de joindre Anthropic (connexion Internet ?).", "Cannot reach Anthropic (Internet connection?).")
         except anthropic.APIStatusError as e:
-            return f"Erreur Anthropic ({e.status_code})."
+            return M(f"Erreur Anthropic ({e.status_code}).", f"Anthropic error ({e.status_code}).")
         keyring.set_password(*TROUSSEAU, cle)
         self.client, self.source = client, "trousseau"
         return None
@@ -380,7 +420,7 @@ class ClaudeAPI:
     def appeler(self, prompt, schema, effort, images=None):
         """Un appel Claude avec réflexion. Renvoie (données JSON, résumé du raisonnement)."""
         if not self.client:
-            raise RuntimeError("Claude n'est pas connecté (ajoute ta clé dans la popup)")
+            raise RuntimeError(M("Claude n'est pas connecté (ajoute ta clé dans la popup)", "Claude is not connected (add your key in the popup)"))
         # Si un filtre de sécurité refuse, l'API relance automatiquement sur un autre modèle
         # (repli non disponible pour Haiku).
         repli = {} if "haiku" in self.modele else {"betas": ["server-side-fallback-2026-07-01"],
@@ -475,7 +515,8 @@ class ClaudeAbonnement:
             self._statut = None  # on revérifiera la connexion
             msg = d.get("result") or r.stderr.strip()[-300:] or f"code {r.returncode}"
             if "safeguards flagged" in msg:
-                msg = "refusé par un filtre de sécurité de Claude (" + msg.split("Details: `")[-1].split("`")[0] + ")"
+                msg = (M("refusé par un filtre de sécurité de Claude", "blocked by a Claude safety filter")
+                       + " (" + msg.split("Details: `")[-1].split("`")[0] + ")")
             raise RuntimeError(f"Claude Code : {msg.strip()[:300]}")
         data = d.get("structured_output") or lire_json(d.get("result"))
         pensee = data.pop("explication", "") if explique else ""
@@ -543,10 +584,15 @@ class Serveur:
         return self.config.get("mode") if self.config.get("mode") in MODES else "auto"
 
     def changer_config(self, p):
-        """p peut contenir "mode" (local/auto/claude), "acces" (abonnement/api), "modele" (opus/sonnet/haiku)."""
+        """p peut contenir "mode" (local/auto/claude), "acces" (abonnement/api), "modele" (opus/sonnet/haiku),
+        "reflexion" (rapide/normale)."""
         if ("mode" in p and p["mode"] not in MODES or "acces" in p and p["acces"] not in Claude.ACCES
-                or "modele" in p and p["modele"] not in MODELES_CLAUDE):
+                or "modele" in p and p["modele"] not in MODELES_CLAUDE
+                or "reflexion" in p and p["reflexion"] not in REFLEXIONS):
             return False
+        if "reflexion" in p:
+            self.config["reflexion"] = p["reflexion"]
+            print(f"→ réflexion de l'IA locale : {p['reflexion']}")
         if "modele" in p:
             self.config["modele_claude"] = p["modele"]
             self.claude.choisir_modele(p["modele"])
@@ -560,6 +606,14 @@ class Serveur:
         self.fichier_config.parent.mkdir(parents=True, exist_ok=True)
         self.fichier_config.write_text(json.dumps(self.config))
         return True
+
+    @property
+    def reflexion(self):
+        """Réglage de la popup ; --reflexion-max 0 au lancement équivaut à « rapide »."""
+        r = self.config.get("reflexion")
+        if r in REFLEXIONS:
+            return r
+        return "rapide" if self.args.reflexion_max <= 0 else "normale"
 
     @property
     def secours_claude(self):
@@ -655,8 +709,10 @@ class Serveur:
             if recuperees == len(manquantes):
                 c["erreur_images"] = None
             else:
-                c["erreur_images"] = (f"{len(manquantes) - recuperees} image(s) illisible(s) (protégée(s) "
-                                      "par une connexion au site ?) : Claude a répondu sans")
+                n = len(manquantes) - recuperees
+                c["erreur_images"] = M(f"{n} image(s) illisible(s) (protégée(s) par une connexion au site ?) : "
+                                       "Claude a répondu sans",
+                                       f"{n} unreadable image(s) (behind a site login?): Claude answered without them")
         images = [i for i in c.get("images", []) if i.get("data")]
         print(f"    page envoyée à Claude ({len(c['page'])} caractères, {len(c['elements'])} éléments, "
               f"{len(images)} image(s))" + (f" — {c['erreur_images']}" if c.get("erreur_images") else ""))
@@ -734,6 +790,16 @@ class Serveur:
             flux.close()  # coupe la connexion : Ollama arrête de générer
         return lire_json("".join(contenu)), "".join(pensee)
 
+    def reponse_qwen_rapide(self, qcm):
+        """Réflexion « rapide » : la réponse seule, en quelques secondes, sans indice (trop peu fiable sans réflexion)."""
+        choix = "\n".join(f"{c['lettre']}. {c['texte']}" for c in qcm["choix"])
+        r = ollama.chat(model=self.args.modele,
+                        messages=[{"role": "user", "content": PROMPT_REPONSE.format(question=qcm["question"], choix=choix)}],
+                        format=SCHEMA_REPONSE, think=False, options={"temperature": 0.3, "num_ctx": 8192},
+                        keep_alive="30m")
+        reponse = (lire_json(r["message"]["content"]).get("reponse") or "").strip()
+        return {"indice": "", "reponse": reponse, "source": "qwen_rapide", "pensee": ""} if reponse else None
+
     def conclure_qwen(self, prompt, pensee):
         """Réflexion inachevée : sans réfléchir, Qwen donne souvent des indices FAUX (mesuré).
         On lui redonne donc sa propre réflexion, qui contient déjà la réponse."""
@@ -755,7 +821,22 @@ class Serveur:
         if self.mode == "claude":
             return self.indice_claude(prompt)
 
-        delai = self.args.delai_local if self.secours_claude else None
+        # Moteur auto : Qwen a --delai-local secondes avant que Claude prenne le relais.
+        # Moteur local : réflexion plafonnée à --reflexion-max secondes, puis Qwen conclut à partir de sa réflexion
+        # (mesuré sur qwen3.5:4b : ~23 s et autant de bonnes réponses qu'une réflexion complète de 40 à 150 s).
+        # Réflexion « rapide » (popup) : la réponse seule, sans réfléchir (~3 s), en local comme en auto.
+        if self.reflexion == "rapide":
+            try:
+                return self.reponse_qwen_rapide(qcm)
+            except Exception as e:
+                if not self.secours_claude:
+                    raise
+                print(f"    Qwen indisponible ({type(e).__name__}) → Claude")
+                return self.indice_claude(prompt)
+        if self.secours_claude:
+            delai = self.args.delai_local
+        else:
+            delai = self.args.reflexion_max if self.args.reflexion_max > 0 else 20
         try:
             data, pensee = self.indice_qwen(prompt, delai)
             res = self.resultat(data, "qwen", pensee)
@@ -807,7 +888,11 @@ class Serveur:
             self.stockage.retirer(qcm)
         if not self.stockage.ajouter_possible(qcm):
             ancien = next((q for q in reversed(self.stockage.items) if cle(q) == cle(qcm)), qcm)
-            return self.affichable(ancien, elements, avertissement)
+            # Déjà vue en réflexion « rapide » (sans indice) et on veut maintenant un indice : on la refait.
+            sans_indice_voulu = self.reflexion == "rapide" and self.mode != "claude" and res is None
+            if ancien.get("indice") or sans_indice_voulu:
+                return self.affichable(ancien, elements, avertissement)
+            self.stockage.retirer(qcm)
         if res is None:  # local : l'indice est demandé maintenant, si c'est bien une question
             self.etat["en_cours"], self.etat["en_cours_url"] = qcm["question"], url
             self.etat["en_cours_question"] = True
@@ -833,7 +918,7 @@ class Serveur:
         self.etat["dernier"] = questions[-1]  # pour la popup (mode sans notification)
 
     def etat_complet(self):
-        return {**self.etat, "mode": self.mode, "modele": self.args.modele,
+        return {**self.etat, "mode": self.mode, "modele": self.args.modele, "reflexion": self.reflexion,
                 "claude": self.claude.etat(), "nb_qcm": len(self.stockage.items)}
 
 
@@ -862,6 +947,8 @@ def handler(serveur, port):
         def securise(self, f):
             # Une erreur dans une requête ne doit jamais couper la connexion sans réponse
             # (la popup croirait alors le serveur arrêté).
+            if self.headers.get("X-Streamlet-Lang") in ("fr", "en"):
+                LANGUE["actuelle"] = self.headers["X-Streamlet-Lang"]
             try:
                 f()
             except Exception as e:
@@ -914,14 +1001,15 @@ def handler(serveur, port):
 
 # ---------------------------------------------------------------- service en tâche de fond
 # macOS : launchd · Linux : systemd (utilisateur) · Windows : lanceur caché dans le dossier Démarrage
-LABEL = "com.shabcode.qcm"
+LABEL = "app.streamlet.serveur"
+ANCIEN_LABEL = "com.shabcode.qcm"   # versions 1.0 et avant : même serveur, même port
 PLIST = Path.home() / "Library" / "LaunchAgents" / f"{LABEL}.plist"
 UNITE_SYSTEMD = Path.home() / ".config" / "systemd" / "user" / "streamlet.service"
 # Windows : un script .vbs dans le dossier Démarrage lance pythonw (aucune fenêtre, aucun droit admin requis)
 # et le relance s'il s'arrête.
 LANCEUR_WINDOWS = (Path(os.environ.get("APPDATA", Path.home() / "AppData" / "Roaming"))
                    / "Microsoft" / "Windows" / "Start Menu" / "Programs" / "Startup" / "Streamlet.vbs")
-JOURNAL = Path.home() / ".shabcode" / "serveur_qcm.log"
+JOURNAL = DOSSIER / "serveur.log"
 
 
 def lancer(*args):
@@ -972,6 +1060,7 @@ def installer_service(options):
         }
         domaine = f"gui/{os.getuid()}"
         launchctl("bootout", f"{domaine}/{LABEL}")  # remplace une ancienne version éventuelle
+        retirer_ancien_service_macos()
         PLIST.write_bytes(plistlib.dumps(plist))
         r = launchctl("bootstrap", domaine, str(PLIST))
 
@@ -1021,10 +1110,20 @@ def arreter_windows():
                f"$_.ProcessId -ne {os.getpid()} -and $_.ProcessId -ne $PID }} | ForEach-Object {{ Stop-Process -Id $_.ProcessId -Force }}")
 
 
+def retirer_ancien_service_macos():
+    """L'ancien service (même serveur, même port 8765) empêcherait le nouveau de démarrer."""
+    ancien = PLIST.with_name(f"{ANCIEN_LABEL}.plist")
+    if ancien.exists():
+        launchctl("bootout", f"gui/{os.getuid()}/{ANCIEN_LABEL}")
+        ancien.unlink(missing_ok=True)
+        print(f"  ancien service {ANCIEN_LABEL} remplacé")
+
+
 def desinstaller_service():
     if sys.platform == "darwin":
         launchctl("bootout", f"gui/{os.getuid()}/{LABEL}")
         PLIST.unlink(missing_ok=True)
+        retirer_ancien_service_macos()
     elif sys.platform == "win32":
         LANCEUR_WINDOWS.unlink(missing_ok=True)
         arreter_windows()
@@ -1041,10 +1140,13 @@ def main():
     if "--desinstaller" in sys.argv:
         return desinstaller_service()
 
+    migrer_anciens_reglages()
     p = argparse.ArgumentParser(description="Reçoit les QCM de l'extension et génère un indice (Qwen local ou Claude)")
     p.add_argument("--modele", default="qwen3.5:4b", help="modèle local avec raisonnement, pour l'indice")
     p.add_argument("--modele-rapide", default="qwen3.5:4b",
                    help="modèle local sans raisonnement, pour repérer la question sur les pages sans boutons radio")
+    p.add_argument("--reflexion-max", type=float, default=20,
+                   help="moteur local : secondes de réflexion de Qwen avant de conclure (0 = sans réflexion, le plus rapide)")
     p.add_argument("--delai-local", type=float, default=90,
                    help="moteur auto : secondes accordées à Qwen avant de passer à Claude")
     p.add_argument("--out", default="qcm.json")

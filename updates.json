@@ -1,0 +1,12 @@
+{
+  "addons": {
+    "streamlet@streamlet.app": {
+      "updates": [
+        {
+          "version": "1.0",
+          "update_link": "https://github.com/Shabich/Streamlet/releases/download/v1.0/streamlet-1.0.xpi"
+        }
+      ]
+    }
+  }
+}

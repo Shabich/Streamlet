@@ -153,7 +153,7 @@
     "message": "· Qwen"
   },
   "sourceQwenTruncated": {
-    "message": "· Qwen (réflexion écourtée)"
+    "message": "· Qwen (réflexion plafonnée)"
   },
   "sourceClaudeSubscription": {
     "message": "· Claude (abonnement)"
@@ -187,5 +187,26 @@
   },
   "analyzingPage": {
     "message": "Analyse de la page…"
+  },
+  "reasoning": {
+    "message": "Réflexion de l'IA locale"
+  },
+  "reasoningFast": {
+    "message": "Rapide ~3 s"
+  },
+  "reasoningNormal": {
+    "message": "Normale ~25 s"
+  },
+  "helpReasoningFast": {
+    "message": "La réponse seule, en quelques secondes, sans réfléchir : pas d'indice (peu fiables sans réflexion). Moins sûr sur les questions pièges ou en plusieurs étapes."
+  },
+  "helpReasoningNormal": {
+    "message": "Qwen réfléchit jusqu'à 20 secondes, puis donne un indice et la réponse : plus lent, mais plus sûr."
+  },
+  "fastNoHint": {
+    "message": "Mode Rapide : pas d'indice, seulement la réponse. Active « Afficher la réponse », ou passe la réflexion en Normale pour avoir un indice."
+  },
+  "sourceQwenFast": {
+    "message": "· Qwen (rapide)"
   }
 }

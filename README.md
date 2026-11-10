@@ -4,6 +4,8 @@
 
 <h1 align="center">Streamlet</h1>
 
+<p align="center"><a href="README.en.md">English</a> · <b>Français</b></p>
+
 <p align="center">
   Extension de navigateur qui lit la question de QCM affichée dans un onglet et demande à une IA
   (locale avec Ollama, ou en ligne avec Claude) un <b>indice</b> pour la trouver, et la réponse si tu le souhaites.
@@ -55,8 +57,8 @@
 | Navigateur | Chrome, Edge, Brave, Arc, Opera… (navigateurs Chromium) ou **Firefox 140+** |
 | Système | macOS, Linux ou Windows 10/11 |
 | Python | 3.10 ou plus : installé par le script d'installation s'il manque (Homebrew sur macOS, gestionnaire de paquets sous Linux, `winget` sous Windows) |
-| Ollama | installé par le script (facultatif si tu n'utilises que Claude) |
-| Espace disque | quelques Go pour le modèle local `qwen3.5:4b` |
+| Ollama | installé par le script, seulement si tu choisis l'IA locale |
+| Espace disque | quelques Go pour le modèle local `qwen3.5:4b` (IA locale uniquement) |
 | Claude (facultatif) | un abonnement claude.ai + [Claude Code](https://claude.com/claude-code), **ou** une clé API Anthropic |
 
 > Safari n'est pas pris en charge.
@@ -188,15 +190,17 @@ Après une mise à jour du dépôt (`git pull`), clique sur ↻ dans la carte St
 > **Firefox retire les extensions chargées ainsi à chaque redémarrage** : il faut refaire l'étape 2.
 > Il n'installe durablement que les extensions signées par Mozilla. Pour garder Streamlet, installe le `.xpi`
 > signé joint aux [Releases](../../releases) du dépôt (`about:addons` › roue dentée › **Installer un module
-> depuis un fichier…**). Sur Ubuntu, Firefox (en snap) ne voit que ton dossier personnel : copie d'abord le
-> `.xpi` dans `~/Téléchargements` si besoin.
+> depuis un fichier…**). **Firefox le met ensuite à jour tout seul** (à partir de la version 1.1) : il vérifie
+> environ une fois par jour si une nouvelle version est publiée. Sur Ubuntu, Firefox (en snap) ne voit que ton
+> dossier personnel : copie d'abord le `.xpi` dans `~/Téléchargements` si besoin.
 >
 > Sans `.xpi` signé, seules **Firefox Developer Edition** et **Nightly** gardent l'extension : dans `about:config`,
 > passe `xpinstall.signatures.required` à `false`, crée le paquet (`cd extension && zip -r ../streamlet.xpi .`)
 > et installe-le de la même façon.
 
-Après une mise à jour du dépôt : installe le nouveau `.xpi` par-dessus l'ancien, ou, pour la version temporaire,
-clique sur **Recharger** dans la carte Streamlet de `about:debugging`.
+Avec le `.xpi` signé, les mises à jour sont automatiques (`about:addons` › roue dentée › **Rechercher des mises à
+jour** pour forcer la vérification). Pour la version temporaire, clique sur **Recharger** dans la carte Streamlet
+de `about:debugging` après un `git pull`.
 
 ## Gérer le serveur
 
@@ -212,13 +216,13 @@ Dans les commandes ci-dessous, remplace `.venv/bin/python` par `.venv\Scripts\py
 | Installer et démarrer | `.venv/bin/python serveur_qcm.py --installer` (ce que fait le script d'installation) |
 | Arrêter et retirer | `.venv/bin/python serveur_qcm.py --desinstaller` |
 | Changer les réglages | relancer `--installer` avec les nouvelles options, par ex. `--installer --modele qwen3.5:2b` |
-| Lire le journal | `~/.shabcode/serveur_qcm.log` (Windows : `%USERPROFILE%\.shabcode\serveur_qcm.log`) |
+| Lire le journal | `~/.streamlet/serveur.log` (Windows : `%USERPROFILE%\.streamlet\serveur.log`) |
 
 Comment c'est fait, selon le système :
 
 | Système | Mécanisme | Fichier créé |
 |---|---|---|
-| macOS | agent **launchd** | `~/Library/LaunchAgents/com.shabcode.qcm.plist` |
+| macOS | agent **launchd** | `~/Library/LaunchAgents/app.streamlet.serveur.plist` |
 | Linux | service **systemd utilisateur** | `~/.config/systemd/user/streamlet.service` |
 | Windows | lanceur caché dans le dossier **Démarrage** (aucune fenêtre, aucun droit admin) | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Streamlet.vbs` |
 
@@ -263,8 +267,9 @@ dans une petite fenêtre en bas à droite.
 
 ### Langue
 
-L'extension s'affiche en anglais ou en français selon la langue du navigateur. Les scripts d'installation
-suivent la langue du système (option `--lang en|fr` / `-Lang en|fr` pour la forcer).
+L'extension s'affiche en anglais ou en français selon la langue du navigateur, et le serveur lui répond dans
+la même langue (messages d'erreur, avertissements). Les scripts d'installation suivent la langue du système
+(option `--lang en|fr` / `-Lang en|fr` pour la forcer). Les indices sont écrits dans la langue de la question.
 
 ### La popup
 
@@ -282,6 +287,7 @@ Réglages de la popup :
 
 | Réglage | Effet |
 |---|---|
+| Réflexion de l'IA locale *(moteurs Local et Auto)* | **Rapide** (~3 s, la réponse seule, **sans indice** : sans réflexion, les indices sont peu fiables ; moins sûr sur les questions pièges ou en plusieurs étapes) ou **Normale** (~25 s, Qwen réfléchit jusqu'à 20 s puis donne un indice et la réponse). Appliqué tout de suite, sans redémarrer le serveur |
 | Notification sur la page | affiche les résultats sur la page ; sinon ils restent dans la popup |
 | Afficher l'indice | montre l'indice |
 | Afficher la réponse | montre aussi la bonne réponse (désactivé par défaut) |
@@ -293,7 +299,7 @@ Badges de l'icône : `ON` = actif · `✗` = serveur injoignable · `!` = page i
 
 | Moteur | Ce qui se passe | Coût | Confidentialité |
 |---|---|---|---|
-| **Local** | Qwen via Ollama, sur ta machine | gratuit | rien ne sort de ta machine |
+| **Local** | Qwen via Ollama, sur ta machine (environ 25 s par question, ou 3 s en réflexion « Rapide », qui donne la réponse sans indice) | gratuit | rien ne sort de ta machine |
 | **Auto** | Qwen d'abord ; Claude prend le relais si Qwen est trop lent (90 s), échoue ou est arrêté | gratuit le plus souvent | Claude seulement en secours |
 | **En ligne** | Claude directement : plus rapide, comprend les images et les pages complexes | voir ci-dessous | la question est envoyée à Anthropic |
 
@@ -330,7 +336,11 @@ réaffichée tout de suite, sans rappeler l'IA, donc sans attente ni quota conso
 
 Pour changer la durée : `serveur_qcm.py --conservation 2` (heures), ou `--conservation 0` pour tout garder.
 
-Réglages de la popup : `~/.shabcode/qcm_config.json`.
+Réglages de la popup : `~/.streamlet/config.json`.
+
+> **Versions 1.0 et avant** : les réglages étaient dans `~/.shabcode/` et la clé API sous le nom `shabcode-qcm`
+> dans le trousseau. Le serveur les reprend automatiquement au premier lancement (les anciens ne sont pas
+> supprimés).
 
 ## Options du serveur
 
@@ -342,6 +352,7 @@ Réglages de la popup : `~/.shabcode/qcm_config.json`.
 |---|---|---|
 | `--modele` | `qwen3.5:4b` | modèle Ollama qui écrit l'indice (avec raisonnement) |
 | `--modele-rapide` | `qwen3.5:4b` | modèle Ollama qui repère la question sur les pages sans boutons radio |
+| `--reflexion-max` | `20` | durée de la réflexion « Normale » en secondes (le choix Rapide / Normale se fait dans la popup ; `0` = Rapide par défaut) |
 | `--delai-local` | `90` | moteur Auto : secondes laissées à Qwen avant de passer à Claude |
 | `--port` | `8765` | port du serveur. Si tu le changes, change aussi `SERVEUR` dans `extension/background.js` et `extension/popup.js` |
 | `--out` | `qcm.json` | fichier des QCM |
@@ -360,16 +371,16 @@ Les options passées avec `--installer` sont reprises par la tâche de fond, par
 ollama rm qwen3.5:4b                              # libère l'espace du modèle
 ```
 
-Puis retire l'extension (`chrome://extensions`, ou `about:addons` sous Firefox) et supprime le dossier du projet.
-Ollama se désinstalle comme une application classique.
+Puis retire l'extension (`chrome://extensions`, ou `about:addons` sous Firefox), supprime le dossier du projet
+et le dossier des réglages `~/.streamlet/`. Ollama se désinstalle comme une application classique.
 
 ## Dépannage
 
 | Symptôme | Solution |
 |---|---|
-| « serveur arrêté » dans la popup, badge `✗` | lance le serveur (voir [Gérer le serveur](#gérer-le-serveur)) ou consulte le journal `~/.shabcode/serveur_qcm.log` |
+| « serveur arrêté » dans la popup, badge `✗` | lance le serveur (voir [Gérer le serveur](#gérer-le-serveur)) ou consulte le journal `~/.streamlet/serveur.log` |
 | `le port 8765 est déjà utilisé` | un serveur tourne déjà (souvent la tâche de fond) : rien à faire, ou `--desinstaller` |
-| Moteur Local très lent ou sans réponse | vérifie qu'Ollama tourne (`ollama list`) ; prends un modèle plus léger (`--modele qwen3.5:2b`) ou le moteur Auto |
+| Moteur Local trop lent ou sans réponse | vérifie qu'Ollama tourne (`ollama list`) ; passe la réflexion sur « Rapide » dans la popup, prends un modèle plus léger (`--modele qwen3.5:2b`) ou le moteur Auto |
 | `model not found` | `ollama pull qwen3.5:4b` (ou le modèle passé avec `--modele`) |
 | Claude « non connecté » (abonnement) | `claude auth login` dans un terminal ; vérifie avec `claude auth status` |
 | Ubuntu / Debian : `No module named pip` | relance `./install-linux.sh` : il installe `python3-venv` et recrée le `.venv`. À la main : `sudo apt install python3-venv`, puis `rm -rf .venv` et relance le script |
@@ -407,26 +418,25 @@ En cas de fuite, révoque-les sur la même page et génères-en de nouvelles.
 
 ### À chaque version
 
-1. Augmente `"version"` dans `extension/manifest.json` (ex. `1.0` → `1.0.1`) : Mozilla refuse deux envois
-   avec le même numéro.
+1. Augmente `"version"` dans `extension/manifest.json` (ex. `1.1` → `1.2`) : Mozilla refuse deux envois avec le
+   même numéro.
 2. Commit et push du code.
-3. Signe l'extension (sans la publier sur le catalogue de Mozilla, vérification automatique en quelques minutes) :
+3. Lance le script de publication. Il signe l'extension chez Mozilla (sans la publier sur son catalogue,
+   vérification automatique en quelques minutes), range le fichier dans `web-ext-artifacts/streamlet-<version>.xpi`
+   et ajoute la version à `updates.json` :
 
    ```bash
-   set -a; source .env; set +a
-   npx web-ext sign --source-dir extension --channel unlisted
+   ./scripts/publier-firefox.sh
    ```
 
-   Le fichier signé arrive dans `web-ext-artifacts/` (ignoré par git).
-4. Crée la Release GitHub avec le même numéro que le manifest, et joins-y le `.xpi` :
+4. Commit et push de `updates.json`.
+5. Crée la Release GitHub `v<version>` et joins-y le `.xpi` **sans le renommer** (par ex. avec `gh` :
+   `gh release create v1.2 web-ext-artifacts/streamlet-1.2.xpi --title "Streamlet 1.2" --notes "…"`).
 
-   ```bash
-   gh release create v1.0.1 web-ext-artifacts/streamlet-1.0.1.xpi --title "Streamlet 1.0.1" --notes "…"
-   ```
-
-Les utilisateurs de Firefox installent ce `.xpi` depuis la Release (`about:addons` › roue dentée ›
-**Installer un module depuis un fichier…**). Firefox ne le met pas à jour tout seul : il faut installer le
-nouveau `.xpi` par-dessus l'ancien, les réglages sont conservés.
+`updates.json` (à la racine du dépôt) est le fichier que Firefox consulte pour les mises à jour automatiques
+(`update_url` dans `extension/manifest.json`). L'ordre compte : publie la Release avant ou en même temps que le
+push de `updates.json`, sinon Firefox trouverait une version annoncée mais pas encore téléchargeable (il
+réessaiera simplement plus tard).
 
 > L'identifiant `streamlet@streamlet.app` (`extension/manifest.json`) est lié au compte qui signe la première
 > version : il ne doit plus changer ensuite.

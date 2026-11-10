@@ -508,7 +508,9 @@
     const c = fenetre();
     if (position) c.append(el("div", "etiquette", position));
     c.append(el("div", "question", d.question));
-    if (affichage.indice) c.append(el("div", "etiquette", tr("hint")), el("div", null, d.indice || "—"));
+    // Mode Rapide : pas d'indice, seulement la réponse (si l'utilisateur l'affiche).
+    if (affichage.indice && d.indice) c.append(el("div", "etiquette", tr("hint")), el("div", null, d.indice));
+    if (!d.indice && !affichage.reponse) c.append(el("div", null, tr("fastNoHint")));
     if (affichage.reponse) {
       const r = d.reponse;
       c.append(el("div", "etiquette", tr("answer")),

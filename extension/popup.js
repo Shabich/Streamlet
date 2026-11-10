@@ -1,4 +1,6 @@
 const SERVEUR = "http://127.0.0.1:8765";
+// Langue du navigateur, transmise au serveur pour qu'il réponde dans la même langue.
+const LANGUE = chrome.i18n.getUILanguage().toLowerCase().startsWith("fr") ? "fr" : "en";
 const $ = (id) => document.getElementById(id);
 const envoyer = (msg) => chrome.runtime.sendMessage(msg);
 // Textes traduits (_locales/en et _locales/fr) : langue du navigateur, anglais par défaut.
@@ -14,7 +16,7 @@ function traduirePage() {
 async function poster(chemin, corps) {
   const r = await fetch(SERVEUR + chemin, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", "X-Streamlet-Lang": LANGUE },
     body: JSON.stringify(corps || {}),
   });
   return r.json();
@@ -22,8 +24,9 @@ async function poster(chemin, corps) {
 
 const AIDE_MODES = { local: "helpModeLocal", auto: "helpModeAuto", claude: "helpModeClaude" };
 const AIDE_MODELES = { haiku: "helpModelHaiku", sonnet: "helpModelSonnet", opus: "helpModelOpus" };
+const AIDE_REFLEXIONS = { rapide: "helpReasoningFast", normale: "helpReasoningNormal" };
 const SOURCES = {
-  qwen: "sourceQwen", qwen_reflexion_tronquee: "sourceQwenTruncated",
+  qwen: "sourceQwen", qwen_reflexion_tronquee: "sourceQwenTruncated", qwen_rapide: "sourceQwenFast",
   claude_abonnement: "sourceClaudeSubscription", claude_api: "sourceClaudeApi", claude: "sourceClaude",
 };
 
@@ -94,6 +97,11 @@ function initMoteur() {
       try { afficherMode((await poster("/config", { mode: b.dataset.mode })).mode); } catch {}
     });
   }
+  for (const b of document.querySelectorAll("#reflexions button")) {
+    b.addEventListener("click", async () => {
+      try { afficherReflexion((await poster("/config", { reflexion: b.dataset.reflexion })).ok ? b.dataset.reflexion : null); } catch {}
+    });
+  }
   for (const b of document.querySelectorAll("#modeles button")) {
     b.addEventListener("click", async () => {
       try { await poster("/config", { modele: b.dataset.modele }); } catch {}
@@ -132,6 +140,13 @@ function initMoteur() {
 function afficherMode(mode) {
   for (const b of document.querySelectorAll("#modes button")) b.classList.toggle("choisi", b.dataset.mode === mode);
   $("aide-mode").textContent = AIDE_MODES[mode] ? t(AIDE_MODES[mode]) : "";
+  $("bloc-reflexion").hidden = !mode || mode === "claude"; // la réflexion ne concerne que l'IA locale
+}
+
+function afficherReflexion(reflexion) {
+  if (!reflexion) return;
+  for (const b of document.querySelectorAll("#reflexions button")) b.classList.toggle("choisi", b.dataset.reflexion === reflexion);
+  $("aide-reflexion").textContent = AIDE_REFLEXIONS[reflexion] ? t(AIDE_REFLEXIONS[reflexion]) : "";
 }
 
 function afficherClaude(claude, mode) {
@@ -215,7 +230,9 @@ function afficherResultats() {
     titre.className = "question";
     titre.textContent = (qs.length > 1 ? `${i + 1}. ` : "") + q.question;
     c.append(titre);
-    if (affichage.indice) c.append(bloc(t("hint") + (SOURCES[q.source] ? " " + t(SOURCES[q.source]) : ""), q.indice || "—", "indice"));
+    const source = SOURCES[q.source] ? " " + t(SOURCES[q.source]) : "";
+    if (affichage.indice && q.indice) c.append(bloc(t("hint") + source, q.indice, "indice"));
+    if (!q.indice && !affichage.reponse) c.append(bloc(t("hint") + source, t("fastNoHint"), "indice"));
     if (affichage.reponse) {
       const r = q.reponse;
       c.append(bloc(t("answer"), r ? (r.lettre && !new RegExp(`^\\s*${r.lettre}\\s*[.)\\-:]`, "i").test(r.texte) ? `${r.lettre}. ` : "") + r.texte : "—", "reponse"));
@@ -227,10 +244,11 @@ function afficherResultats() {
 // ---------- état du serveur ----------
 async function rafraichir() {
   try {
-    const e = await (await fetch(SERVEUR + "/etat", { signal: AbortSignal.timeout(4000) })).json();
+    const e = await (await fetch(SERVEUR + "/etat", { signal: AbortSignal.timeout(4000), headers: { "X-Streamlet-Lang": LANGUE } })).json();
     $("point").className = "point ok";
     $("serveur").textContent = t("serverRunning");
     afficherMode(e.mode);
+    afficherReflexion(e.reflexion);
     afficherClaude(e.claude, e.mode);
     if (e.resultats?.questions?.length && e.resultats.id !== derniersResultats?.id) {
       derniersResultats = e.resultats;
