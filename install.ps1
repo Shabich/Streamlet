@@ -1,4 +1,4 @@
-﻿# Streamlet — installation pour Windows (macOS / Linux : utiliser install.sh).
+﻿# Streamlet — installation pour Windows (macOS : install-macos.sh · Linux : install-linux.sh).
 #   powershell -ExecutionPolicy Bypass -File install.ps1          questionnaire : choisis ce qu'il faut installer
 #   powershell -ExecutionPolicy Bypass -File install.ps1 -Oui     sans questions, réglages recommandés
 # Options (sans questions) :
@@ -262,7 +262,9 @@ f.write_text(json.dumps(config))
 $options = @()
 if ($Modele -ne "qwen3.5:4b") { $options = @("--modele", $Modele, "--modele-rapide", $Modele) }
 $etapes = @(
-    "  1. Charge l'extension : chrome://extensions > Mode développeur > « Charger l'extension non empaquetée » > dossier extension\"
+    "  1. Charge l'extension (dossier extension\, voir le README) :",
+    "       Chrome / Edge / Brave : chrome://extensions > Mode développeur > « Charger l'extension non empaquetée »",
+    "       Firefox : about:debugging > Ce Firefox > « Charger un module complémentaire temporaire » > manifest.json"
 )
 if ($claudeAcces -eq "api") { $etapes += "  2. Colle ta clé API dans la popup de l'extension (section Claude > Clé API)" }
 

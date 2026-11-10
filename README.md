@@ -51,14 +51,14 @@
 
 | | Version |
 |---|---|
-| Navigateur | Chrome, Edge, Brave, Arc, Opera… (tout navigateur Chromium, Manifest V3) |
+| Navigateur | Chrome, Edge, Brave, Arc, Opera… (navigateurs Chromium) ou **Firefox 128+** |
 | Système | macOS, Linux ou Windows 10/11 |
-| Python | 3.10 ou plus (installé par `install.ps1` sous Windows s'il manque) |
+| Python | 3.10 ou plus : installé par le script d'installation s'il manque (Homebrew sur macOS, gestionnaire de paquets sous Linux, `winget` sous Windows) |
 | Ollama | installé par le script (facultatif si tu n'utilises que Claude) |
 | Espace disque | quelques Go pour le modèle local `qwen3.5:4b` |
 | Claude (facultatif) | un abonnement claude.ai + [Claude Code](https://claude.com/claude-code), **ou** une clé API Anthropic |
 
-> Firefox et Safari ne sont pas pris en charge pour l'instant.
+> Safari n'est pas pris en charge.
 
 ## Installation
 
@@ -71,13 +71,15 @@ cd Streamlet
 
 Lance le script d'installation de ton système :
 
-```bash
-./install.sh                                          # macOS / Linux
-```
+| Système | Commande |
+|---|---|
+| macOS | `./install-macos.sh` |
+| Linux | `./install-linux.sh` |
+| Windows (PowerShell) | `powershell -ExecutionPolicy Bypass -File install.ps1` |
 
-```powershell
-powershell -ExecutionPolicy Bypass -File install.ps1  # Windows
-```
+> **Linux** : ce qui manque au système (Python, `python3-venv`, `curl`, Ollama) est installé avec `sudo`,
+> donc ton mot de passe te sera demandé. Le script utilise le gestionnaire de paquets de ta distribution
+> (apt, dnf, pacman ou zypper).
 
 ### Le questionnaire
 
@@ -113,7 +115,8 @@ l'extension et l'IA. Il peut tourner de deux façons :
 
 ### Ce que fait le script
 
-1. vérifie Python 3.10+ (sous Windows, l'installe avec `winget` s'il manque) ;
+1. vérifie Python 3.10+ et l'installe s'il manque (Homebrew sur macOS, `sudo apt`/`dnf`/`pacman`/`zypper` sous Linux,
+   `winget` sous Windows). Sous Debian/Ubuntu, il ajoute aussi `python3-venv`, qui contient `venv` et `pip` ;
 2. *si IA locale* : installe Ollama s'il est absent ([ollama.com](https://ollama.com)), le démarre et télécharge le modèle ;
 3. *si abonnement Claude* : installe Claude Code et le connecte à ton compte, si tu l'as accepté ;
 4. crée l'environnement Python `.venv` et installe les dépendances de `requirements.txt` ;
@@ -143,7 +146,7 @@ Si tu passes une option, le script ne pose aucune question. C'est pratique pour 
 | `--sans-ollama` | `-SansOllama` | sans IA locale : Claude uniquement |
 | `--claude api` | `-Claude api` | accès à Claude : `abonnement` (défaut), `api` ou `aucun` |
 
-Exemple : `./install.sh --sans-ollama --claude api --ephemere`.
+Exemple : `./install-linux.sh --sans-ollama --claude api --ephemere`.
 Sans option, mais lancé sans clavier (par un autre programme, en CI…), le script prend aussi les réglages recommandés.
 
 <details>
@@ -163,12 +166,32 @@ python3 -m venv .venv
 
 ## Charger l'extension dans le navigateur
 
+Le même dossier `extension/` sert pour tous les navigateurs.
+
+### Chrome, Edge, Brave, Arc, Opera…
+
 1. Ouvre `chrome://extensions` (ou `edge://extensions`, `brave://extensions`…).
 2. Active le **Mode développeur** (en haut à droite).
 3. Clique sur **Charger l'extension non empaquetée** et choisis le dossier `extension/` du dépôt.
 4. Épingle Streamlet dans la barre d'outils (icône puzzle › épingle).
 
 Après une mise à jour du dépôt (`git pull`), clique sur ↻ dans la carte Streamlet de `chrome://extensions`.
+
+### Firefox
+
+1. Ouvre `about:debugging#/runtime/this-firefox`.
+2. Clique sur **Charger un module complémentaire temporaire…** et choisis le fichier `extension/manifest.json`.
+3. Épingle Streamlet dans la barre d'outils (icône puzzle › roue dentée › Épingler à la barre d'outils).
+
+> **Firefox retire les extensions chargées ainsi à chaque redémarrage** : il faut refaire l'étape 2.
+> Il n'installe durablement que les extensions signées par Mozilla. Pour garder Streamlet :
+> - **Firefox Developer Edition ou Nightly** : dans `about:config`, passe `xpinstall.signatures.required` à `false`,
+>   puis installe un paquet `.xpi` de l'extension (un zip du contenu de `extension/`, renommé en `.xpi`) depuis
+>   `about:addons` › roue dentée › **Installer un module depuis un fichier…** ;
+> - **Firefox classique** : il faut un `.xpi` signé par Mozilla (via [addons.mozilla.org](https://addons.mozilla.org/developers/),
+>   gratuit, publication facultative).
+
+Après une mise à jour du dépôt, clique sur **Recharger** dans la carte Streamlet de `about:debugging`.
 
 ## Gérer le serveur
 
@@ -195,7 +218,7 @@ Comment c'est fait, selon le système :
 | Windows | lanceur caché dans le dossier **Démarrage** (aucune fenêtre, aucun droit admin) | `%APPDATA%\Microsoft\Windows\Start Menu\Programs\Startup\Streamlet.vbs` |
 
 > **Linux** : un service utilisateur s'arrête quand tu fermes ta session (pas quand tu fermes le terminal).
-> Pour qu'il tourne même sans session ouverte : `loginctl enable-linger $USER`.
+> Pour qu'il tourne même sans session ouverte : `sudo loginctl enable-linger $USER`.
 
 ### Mode éphémère
 
@@ -320,7 +343,7 @@ Les options passées avec `--installer` sont reprises par la tâche de fond, par
 ollama rm qwen3.5:4b                              # libère l'espace du modèle
 ```
 
-Puis retire l'extension dans `chrome://extensions` et supprime le dossier du projet.
+Puis retire l'extension (`chrome://extensions`, ou `about:addons` sous Firefox) et supprime le dossier du projet.
 Ollama se désinstalle comme une application classique.
 
 ## Dépannage
@@ -332,8 +355,9 @@ Ollama se désinstalle comme une application classique.
 | Moteur Local très lent ou sans réponse | vérifie qu'Ollama tourne (`ollama list`) ; prends un modèle plus léger (`--modele qwen3.5:2b`) ou le moteur Auto |
 | `model not found` | `ollama pull qwen3.5:4b` (ou le modèle passé avec `--modele`) |
 | Claude « non connecté » (abonnement) | `claude auth login` dans un terminal ; vérifie avec `claude auth status` |
-| Linux : erreur `keyring` avec une clé API | installe un trousseau Secret Service (`gnome-keyring` ou KWallet), ou utilise `ANTHROPIC_API_KEY` |
-| Linux : le serveur durable s'arrête à la déconnexion | `loginctl enable-linger $USER` |
+| Ubuntu / Debian : `No module named pip` | relance `./install-linux.sh` : il installe `python3-venv` et recrée le `.venv`. À la main : `sudo apt install python3-venv`, puis `rm -rf .venv` et relance le script |
+| Linux : erreur `keyring` avec une clé API | installe un trousseau Secret Service (`sudo apt install gnome-keyring`, ou KWallet), ou utilise `ANTHROPIC_API_KEY` |
+| Linux : le serveur durable s'arrête à la déconnexion | `sudo loginctl enable-linger $USER` |
 | Le serveur s'arrête quand je ferme le terminal | c'est le mode éphémère : relance le script d'installation et choisis « Durable » |
 | Windows : « l'exécution de scripts est désactivée » | lance le script avec `powershell -ExecutionPolicy Bypass -File install.ps1` |
 | Aucune question détectée | recharge la page ; certaines pages très dynamiques nécessitent le moteur « En ligne » |

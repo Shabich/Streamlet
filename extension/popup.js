@@ -107,9 +107,10 @@ function afficherClaude(claude, mode) {
   const c = parAbonnement ? claude.abonnement : claude.api;
   for (const b of document.querySelectorAll("#modeles button")) b.classList.toggle("choisi", b.dataset.modele === claude.famille);
   $("aide-modele").textContent = AIDE_MODELES[claude.famille] || "";
-  $("claude-etat").innerHTML = c.connecte
-    ? `<span class="ok">connecté</span>`
-    : `<span class="${mode === "local" ? "aide" : "ko"}">non connecté</span>`;
+  const etat = document.createElement("span");
+  etat.className = c.connecte ? "ok" : mode === "local" ? "aide" : "ko";
+  etat.textContent = c.connecte ? "connecté" : "non connecté";
+  $("claude-etat").replaceChildren(etat);
 
   // Abonnement : passe par Claude Code, déjà connecté à ton compte claude.ai.
   $("claude-abonnement").hidden = !parAbonnement;

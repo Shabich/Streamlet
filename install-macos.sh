@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
-# Streamlet — installation pour macOS et Linux (Windows : utiliser install.ps1).
-#   ./install.sh                     questionnaire : choisis ce qu'il faut installer, puis tout se lance
-#   ./install.sh --oui               sans questions, réglages recommandés (IA locale + Claude, durable)
+# Streamlet — installation pour macOS (Linux : install-linux.sh · Windows : install.ps1).
+#   ./install-macos.sh               questionnaire : choisis ce qu'il faut installer, puis tout se lance
+#   ./install-macos.sh --oui         sans questions, réglages recommandés (IA locale + Claude, durable)
 # Options (sans questions) :
 #   --ephemere                       serveur dans ce terminal (s'arrête quand on le ferme) au lieu de durable
 #   --modele qwen3.5:2b              autre modèle Ollama
@@ -43,12 +43,7 @@ avert() { printf '\033[33m!\033[0m %s\n' "$*"; }
 ko()    { printf '\033[31m✗\033[0m %s\n' "$*" >&2; exit 1; }
 gras()  { printf '\033[1m%s\033[0m\n' "$*"; }
 
-case "$(uname -s)" in
-  Darwin) OS=macos ;;
-  Linux)  OS=linux ;;
-  MINGW*|MSYS*|CYGWIN*) ko "Sous Windows, lance plutôt : powershell -ExecutionPolicy Bypass -File install.ps1" ;;
-  *) ko "Système non pris en charge : $(uname -s)" ;;
-esac
+[[ "$(uname -s)" == Darwin ]] || ko "Ce script est pour macOS. Linux : ./install-linux.sh · Windows : install.ps1"
 
 # ---------- Questionnaire ----------
 # choix "Question" "option 1" "option 2" … → numéro choisi dans $REPONSE (1 = défaut, avec Entrée)
@@ -160,17 +155,23 @@ fi
 echo
 
 # ---------- Python ----------
-PY=""
-for c in python3 python; do
-  if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
-    PY="$c"; break
-  fi
-done
-if [[ -z "$PY" ]]; then
-  if [[ $OS == macos ]]; then
-    ko "Python 3.10+ introuvable. Installe-le : brew install python (ou https://www.python.org/downloads/)"
+trouver_python() {
+  PY=""
+  for c in python3 python; do
+    if command -v "$c" >/dev/null 2>&1 && "$c" -c 'import sys; sys.exit(sys.version_info < (3, 10))' 2>/dev/null; then
+      PY="$c"; return 0
+    fi
+  done
+  return 1
+}
+if ! trouver_python; then
+  # Le python3 fourni par Apple (outils de développement) est trop ancien : on passe par Homebrew.
+  if command -v brew >/dev/null 2>&1; then
+    info "Installation de Python avec Homebrew…"
+    brew install python
+    trouver_python || ko "Python installé mais introuvable : ouvre un nouveau terminal et relance ce script."
   else
-    ko "Python 3.10+ introuvable. Installe-le, par ex. : sudo apt install python3 python3-venv"
+    ko "Python 3.10+ introuvable. Installe-le depuis https://www.python.org/downloads/ (ou avec Homebrew : https://brew.sh), puis relance ce script."
   fi
 fi
 ok "Python : $($PY --version)"
@@ -181,32 +182,25 @@ ollama_repond() { curl -fsS --max-time 2 http://127.0.0.1:11434/api/version >/de
 if [[ $AVEC_OLLAMA == 1 ]]; then
   if ! command -v ollama >/dev/null 2>&1 && [[ ! -d /Applications/Ollama.app ]]; then
     info "Installation d'Ollama…"
-    if [[ $OS == macos ]]; then
-      TMP="$(mktemp -d)"
-      curl -fL --progress-bar -o "$TMP/Ollama.zip" https://ollama.com/download/Ollama-darwin.zip
-      unzip -q "$TMP/Ollama.zip" -d "$TMP"
-      mv "$TMP/Ollama.app" /Applications/
-      rm -rf "$TMP"
-    else
-      # Script officiel : installe le binaire et un service systemd (demande sudo).
-      curl -fsSL https://ollama.com/install.sh | sh
-    fi
+    TMP="$(mktemp -d)"
+    curl -fL --progress-bar -o "$TMP/Ollama.zip" https://ollama.com/download/Ollama-darwin.zip
+    unzip -q "$TMP/Ollama.zip" -d "$TMP"
+    # /Applications est en général modifiable sans mot de passe ; sinon, sudo le demande.
+    mv "$TMP/Ollama.app" /Applications/ 2>/dev/null || sudo mv "$TMP/Ollama.app" /Applications/
+    rm -rf "$TMP"
   fi
   ok "Ollama installé"
   OLLAMA_BIN="$(command -v ollama || echo /Applications/Ollama.app/Contents/Resources/ollama)"
 
   if ! ollama_repond; then
     info "Démarrage d'Ollama…"
-    if [[ $OS == macos && -d /Applications/Ollama.app ]]; then
+    if [[ -d /Applications/Ollama.app ]]; then
       open -ga Ollama   # l'appli se lance aussi à chaque ouverture de session
-    elif command -v systemctl >/dev/null 2>&1 && systemctl list-unit-files ollama.service >/dev/null 2>&1; then
-      sudo systemctl enable --now ollama || true
-    fi
-    if ! ollama_repond; then
+    else
       nohup "$OLLAMA_BIN" serve >/dev/null 2>&1 &
     fi
     for _ in $(seq 1 30); do ollama_repond && break; sleep 1; done
-    ollama_repond || ko "Ollama ne répond pas sur http://127.0.0.1:11434 — lance « ollama serve » puis relance ce script."
+    ollama_repond || ko "Ollama ne répond pas sur http://127.0.0.1:11434 : ouvre l'application Ollama, puis relance ce script."
   fi
   ok "Ollama actif"
 
@@ -234,9 +228,17 @@ if [[ $CONNECTER_CLAUDE_CODE == 1 ]]; then
 fi
 
 # ---------- Environnement Python ----------
+# Un .venv sans pip (création interrompue) est recréé.
+if [[ -x .venv/bin/python ]] && ! .venv/bin/python -m pip --version >/dev/null 2>&1; then
+  avert "Environnement .venv incomplet (pip absent) : il est recréé."
+  rm -rf .venv
+fi
 if [[ ! -x .venv/bin/python ]]; then
   info "Création de l'environnement Python (.venv)…"
-  "$PY" -m venv .venv || ko "Échec de « python -m venv ». Sous Debian/Ubuntu : sudo apt install python3-venv"
+  if ! "$PY" -m venv .venv; then
+    rm -rf .venv   # ne pas laisser un .venv à moitié créé
+    ko "Échec de « python -m venv ». Réinstalle Python (brew reinstall python, ou python.org), puis relance ce script."
+  fi
 fi
 .venv/bin/python -m pip install --quiet --upgrade pip
 .venv/bin/python -m pip install --quiet -r requirements.txt
@@ -263,8 +265,9 @@ fi
 # ---------- Serveur ----------
 OPTIONS=""
 if [[ "$MODELE" != "qwen3.5:4b" ]]; then OPTIONS="--modele $MODELE --modele-rapide $MODELE"; fi
-ETAPES="  1. Charge l'extension : chrome://extensions › Mode développeur › « Charger l'extension non empaquetée » › dossier extension/
-"
+ETAPES="  1. Charge l'extension (dossier extension/, voir le README) :
+       Chrome / Edge / Brave : chrome://extensions › Mode développeur › « Charger l'extension non empaquetée »
+       Firefox : about:debugging › Ce Firefox › « Charger un module complémentaire temporaire » › manifest.json"
 if [[ $CLAUDE_ACCES == "api" ]]; then
   ETAPES="$ETAPES
   2. Colle ta clé API dans la popup de l'extension (section Claude › Clé API)"
