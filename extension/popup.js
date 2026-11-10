@@ -45,10 +45,23 @@ async function initOnglet() {
     $("msg").textContent = "";
     if (!interrupteur.checked) { await envoyer({ type: "desactiver", tabId: onglet.id }); return; }
     // Accès limité au site de cet onglet (demandé une seule fois par site).
-    await chrome.storage.session.set({ attente: onglet.id });
-    const permis = await chrome.permissions.request({ origins: [url.origin + "/*"] });
+    // Firefox n'accepte permissions.request que directement dans le clic : aucun « await » avant.
+    // « attente » permet au service de fond de finir l'activation si la popup se ferme pendant la demande
+    // (Firefox la ferme pour afficher la question d'autorisation).
+    chrome.storage.session.set({ attente: onglet.id });
+    let permis = false;
+    try {
+      // Sans port : Firefox ignore les motifs d'adresse qui en contiennent un (ex. localhost:3000).
+      permis = await chrome.permissions.request({ origins: [`${url.protocol}//${url.hostname}/*`] });
+    } catch (e) {
+      $("msg").textContent = "Demande d'accès impossible : " + (e.message || e);
+    }
     await chrome.storage.session.remove("attente");
-    if (!permis) { interrupteur.checked = false; $("msg").textContent = "Accès au site refusé."; return; }
+    if (!permis) {
+      interrupteur.checked = false;
+      if (!$("msg").textContent) $("msg").textContent = "Accès au site refusé.";
+      return;
+    }
     const r = await envoyer({ type: "activer", tabId: onglet.id });
     if (!r.ok) { interrupteur.checked = false; $("msg").textContent = "Injection impossible : " + r.erreur; }
   });

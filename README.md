@@ -51,7 +51,7 @@
 
 | | Version |
 |---|---|
-| Navigateur | Chrome, Edge, Brave, Arc, Opera… (navigateurs Chromium) ou **Firefox 128+** |
+| Navigateur | Chrome, Edge, Brave, Arc, Opera… (navigateurs Chromium) ou **Firefox 140+** |
 | Système | macOS, Linux ou Windows 10/11 |
 | Python | 3.10 ou plus : installé par le script d'installation s'il manque (Homebrew sur macOS, gestionnaire de paquets sous Linux, `winget` sous Windows) |
 | Ollama | installé par le script (facultatif si tu n'utilises que Claude) |
@@ -326,7 +326,7 @@ Réglages de la popup : `~/.shabcode/qcm_config.json`.
 | `--modele` | `qwen3.5:4b` | modèle Ollama qui écrit l'indice (avec raisonnement) |
 | `--modele-rapide` | `qwen3.5:4b` | modèle Ollama qui repère la question sur les pages sans boutons radio |
 | `--delai-local` | `90` | moteur Auto : secondes laissées à Qwen avant de passer à Claude |
-| `--port` | `8765` | port du serveur. Si tu le changes, change aussi `SERVEUR` dans `extension/background.js`, `extension/popup.js` et `host_permissions` dans `extension/manifest.json` |
+| `--port` | `8765` | port du serveur. Si tu le changes, change aussi `SERVEUR` dans `extension/background.js` et `extension/popup.js` |
 | `--out` | `qcm.json` | fichier des QCM |
 | `--raisonnements` | `raisonnements.jsonl` | fichier des raisonnements |
 | `--conservation` | `24` | heures pendant lesquelles les questions sont gardées (`0` = toujours) |

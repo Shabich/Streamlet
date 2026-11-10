@@ -16,6 +16,9 @@ venv/
 *.pem
 *.crx
 *.zip
+*.xpi
+web-ext-artifacts/
+.amo-upload-uuid
 
 # --- Données générées par le serveur (questions, réponses, raisonnements) ---
 qcm.json
