@@ -192,13 +192,13 @@
     "message": "Réflexion de l'IA locale"
   },
   "reasoningFast": {
-    "message": "Rapide ~3 s"
+    "message": "Rapide ~5 s"
   },
   "reasoningNormal": {
     "message": "Normale ~25 s"
   },
   "helpReasoningFast": {
-    "message": "La réponse seule, en quelques secondes, sans réfléchir : pas d'indice (peu fiables sans réflexion). Moins sûr sur les questions pièges ou en plusieurs étapes."
+    "message": "Qwen réfléchit 3 secondes, puis donne la réponse seule : pas d'indice (peu fiables avec si peu de réflexion). Moins sûr sur les questions difficiles."
   },
   "helpReasoningNormal": {
     "message": "Qwen réfléchit jusqu'à 20 secondes, puis donne un indice et la réponse : plus lent, mais plus sûr."
@@ -208,5 +208,155 @@
   },
   "sourceQwenFast": {
     "message": "· Qwen (rapide)"
+  },
+  "serverOutdated": {
+    "message": "Le serveur qui tourne est une ancienne version et ignore ce réglage : relance le script d'installation pour le mettre à jour."
+  },
+  "localModel": {
+    "message": "IA locale"
+  },
+  "gigabytes": {
+    "message": "$1 Go"
+  },
+  "localMemory": {
+    "message": "Mémoire utilisée : $1 sur $2"
+  },
+  "localMemoryNoTotal": {
+    "message": "Mémoire utilisée : $1"
+  },
+  "localNotLoaded": {
+    "message": "Pas en mémoire : il se charge à la prochaine question ($1 sur le disque)."
+  },
+  "localNotInstalled": {
+    "message": "Modèle non téléchargé : lance « ollama pull $1 »."
+  },
+  "ollamaDown": {
+    "message": "Ollama ne répond pas : ouvre l'application Ollama (ou lance « ollama serve »)."
+  },
+  "localGpuFull": {
+    "message": "100 % sur le GPU"
+  },
+  "localCpuOnly": {
+    "message": "sur le processeur uniquement (plus lent)"
+  },
+  "localGpuPart": {
+    "message": "$1 % sur le GPU, le reste sur le processeur"
+  },
+  "localOnDisk": {
+    "message": "$1 sur le disque"
+  },
+  "localFreesIn": {
+    "message": "libérée dans $1 min sans question"
+  },
+  "knowledgeManage": {
+    "message": "Gérer…"
+  },
+  "knowledgeSummary": {
+    "message": "Connaissances : $1 thème(s) actif(s) sur $2"
+  },
+  "knowledgeNone": {
+    "message": "Connaissances : aucun thème"
+  },
+  "knowledgeTitle": {
+    "message": "Connaissances"
+  },
+  "knowledgeIntro": {
+    "message": "Des fichiers de faits par thème, donnés à l'IA locale avec chaque question (seulement les faits qui la concernent). Ils restent sur ta machine. Claude ne s'en sert pas."
+  },
+  "knowledgeAdd": {
+    "message": "Ajouter un thème"
+  },
+  "knowledgeDrop": {
+    "message": "Dépose un fichier ici"
+  },
+  "knowledgeChoose": {
+    "message": "Choisir un fichier"
+  },
+  "knowledgeFormats": {
+    "message": "CSV, TXT, Markdown, JSON ou JSONL · 5 Mo maximum · texte en UTF-8"
+  },
+  "knowledgePreview": {
+    "message": "Aperçu : vérifie que le fichier est bien compris"
+  },
+  "knowledgeFacts": {
+    "message": "$1 faits"
+  },
+  "knowledgeConfirm": {
+    "message": "Ajouter ce thème"
+  },
+  "knowledgeCancel": {
+    "message": "Annuler"
+  },
+  "knowledgeAdded": {
+    "message": "Thème « $1 » ajouté ($2 faits) et activé."
+  },
+  "knowledgeTooBig": {
+    "message": "Fichier trop gros (5 Mo maximum)."
+  },
+  "knowledgeList": {
+    "message": "Tes thèmes"
+  },
+  "knowledgeEmpty": {
+    "message": "Aucun thème pour l'instant."
+  },
+  "knowledgeOn": {
+    "message": "Activé : utilisé par l'IA locale"
+  },
+  "knowledgeOff": {
+    "message": "Désactivé : ignoré"
+  },
+  "knowledgeBundled": {
+    "message": "fourni"
+  },
+  "knowledgeMine": {
+    "message": "ajouté par toi"
+  },
+  "knowledgeDelete": {
+    "message": "Supprimer"
+  },
+  "knowledgeDeleteConfirm": {
+    "message": "Supprimer le thème « $1 » ?"
+  },
+  "knowledgeServerDown": {
+    "message": "Le serveur Streamlet ne répond pas (ou c'est une ancienne version) : relance le script d'installation."
+  },
+  "knowledgeFormatsTitle": {
+    "message": "Formats"
+  },
+  "knowledgeColFormat": {
+    "message": "Fichier"
+  },
+  "knowledgeColRead": {
+    "message": "Comment il est lu"
+  },
+  "knowledgeCsv": {
+    "message": "Chaque ligne est un fait, avec les noms de colonnes (« numéro : 47 · nom : Lot-et-Garonne »). Exporte depuis Excel, Numbers ou Google Sheets. Séparateur : virgule, point-virgule ou tabulation."
+  },
+  "knowledgeTxt": {
+    "message": "Chaque ligne (ou chaque paragraphe, pour un texte rédigé) est un fait. Une première ligne « # Titre » donne le nom du thème."
+  },
+  "knowledgeJson": {
+    "message": "Une liste d'objets ou de phrases, un fait par élément (JSONL : un par ligne)."
+  },
+  "knowledgeTemplates": {
+    "message": "Le thème prend le nom du fichier (ou son « # Titre »). Pars d'un modèle :"
+  },
+  "knowledgeTemplateCsv": {
+    "message": "Modèle CSV"
+  },
+  "knowledgeTemplateTxt": {
+    "message": "Modèle TXT"
+  },
+  "knowledgeTemplateCsvName": {
+    "message": "Capitales du monde.csv"
+  },
+  "knowledgeTemplateCsvContent": {
+    "message": "pays,capitale,continent\nAustralie,Canberra,Océanie\nCanada,Ottawa,Amérique du Nord\nJapon,Tokyo,Asie\n"
+  },
+  "knowledgeTemplateTxtName": {
+    "message": "Monnaies.txt"
+  },
+  "knowledgeTemplateTxtContent": {
+    "message": "# Monnaies du monde\nGéorgie : lari\nJapon : yen\nNigeria : naira\n"
   }
 }

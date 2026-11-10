@@ -49,6 +49,11 @@
   .aide { font-size: 11px; color: var(--doux); margin-top: 4px; }
   .claude { margin-top: 8px; padding: 10px; border: 1px solid var(--bord); border-radius: 8px; }
   .claude .segments { margin-top: 8px; }
+  .claude + .claude { margin-top: 8px; }
+  .connaissances { margin-top: 8px; padding-top: 8px; border-top: 1px solid var(--bord); }
+  .jauge { margin-top: 6px; height: 6px; border-radius: 3px; background: var(--bord); overflow: hidden; }
+  .jauge div { height: 100%; background: var(--accent); border-radius: 3px; }
+  .jauge.haute div { background: var(--ko); }
   .affichage { display: flex; gap: 14px; margin-top: 10px; }
   .note { font-size: 11px; color: var(--doux); margin-top: 8px; }
   .petit-inter { display: flex; align-items: center; gap: 6px; font-size: 12px; cursor: pointer; }
@@ -100,9 +105,24 @@
         <button data-reflexion="normale" data-i18n="reasoningNormal"></button>
       </div>
       <div class="aide" id="aide-reflexion"></div>
+      <div class="msg" id="msg-reflexion"></div>
     </div>
 
-    <div class="claude">
+    <div class="claude" id="bloc-local" hidden>
+      <div class="ligne">
+        <span data-i18n="localModel"></span>
+        <span id="local-modele"></span>
+      </div>
+      <div class="aide" id="local-etat"></div>
+      <div class="jauge" id="local-jauge" hidden><div id="local-jauge-plein"></div></div>
+      <div class="aide" id="local-details"></div>
+      <div class="ligne aide connaissances">
+        <span id="local-connaissances"></span>
+        <a href="#" id="gerer-connaissances" data-i18n="knowledgeManage"></a>
+      </div>
+    </div>
+
+    <div class="claude" id="bloc-claude">
       <div class="ligne">
         <span>Claude</span>
         <span id="claude-etat">…</span>

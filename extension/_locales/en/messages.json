@@ -192,13 +192,13 @@
     "message": "Local AI reasoning"
   },
   "reasoningFast": {
-    "message": "Fast ~3 s"
+    "message": "Fast ~5 s"
   },
   "reasoningNormal": {
     "message": "Normal ~25 s"
   },
   "helpReasoningFast": {
-    "message": "The answer only, in a few seconds, without thinking it through: no hint (they are unreliable without reasoning). Less reliable on tricky or multi-step questions."
+    "message": "Qwen thinks for 3 seconds, then gives the answer only: no hint (unreliable with so little reasoning). Less reliable on tricky questions."
   },
   "helpReasoningNormal": {
     "message": "Qwen reasons for up to 20 seconds, then gives a hint and the answer: slower, but safer."
@@ -208,5 +208,155 @@
   },
   "sourceQwenFast": {
     "message": "· Qwen (fast)"
+  },
+  "serverOutdated": {
+    "message": "The running server is an older version and ignores this setting: run the setup script again to update it."
+  },
+  "localModel": {
+    "message": "Local AI"
+  },
+  "gigabytes": {
+    "message": "$1 GB"
+  },
+  "localMemory": {
+    "message": "Memory used: $1 of $2"
+  },
+  "localMemoryNoTotal": {
+    "message": "Memory used: $1"
+  },
+  "localNotLoaded": {
+    "message": "Not in memory: loads on the next question ($1 on disk)."
+  },
+  "localNotInstalled": {
+    "message": "Model not downloaded: run “ollama pull $1”."
+  },
+  "ollamaDown": {
+    "message": "Ollama is not responding: open the Ollama app (or run “ollama serve”)."
+  },
+  "localGpuFull": {
+    "message": "100% on the GPU"
+  },
+  "localCpuOnly": {
+    "message": "on the CPU only (slower)"
+  },
+  "localGpuPart": {
+    "message": "$1% on the GPU, the rest on the CPU"
+  },
+  "localOnDisk": {
+    "message": "$1 on disk"
+  },
+  "localFreesIn": {
+    "message": "freed in $1 min without questions"
+  },
+  "knowledgeManage": {
+    "message": "Manage…"
+  },
+  "knowledgeSummary": {
+    "message": "Knowledge: $1 of $2 themes on"
+  },
+  "knowledgeNone": {
+    "message": "Knowledge: no theme yet"
+  },
+  "knowledgeTitle": {
+    "message": "Knowledge"
+  },
+  "knowledgeIntro": {
+    "message": "Themed fact files given to the local AI along with each question (only the facts related to the question). They stay on your computer. Claude does not use them."
+  },
+  "knowledgeAdd": {
+    "message": "Add a theme"
+  },
+  "knowledgeDrop": {
+    "message": "Drop a file here"
+  },
+  "knowledgeChoose": {
+    "message": "Choose a file"
+  },
+  "knowledgeFormats": {
+    "message": "CSV, TXT, Markdown, JSON or JSONL · 5 MB max · UTF-8 text"
+  },
+  "knowledgePreview": {
+    "message": "Preview: check the file was read correctly"
+  },
+  "knowledgeFacts": {
+    "message": "$1 facts"
+  },
+  "knowledgeConfirm": {
+    "message": "Add this theme"
+  },
+  "knowledgeCancel": {
+    "message": "Cancel"
+  },
+  "knowledgeAdded": {
+    "message": "Theme “$1” added ($2 facts) and turned on."
+  },
+  "knowledgeTooBig": {
+    "message": "File too large (5 MB maximum)."
+  },
+  "knowledgeList": {
+    "message": "Your themes"
+  },
+  "knowledgeEmpty": {
+    "message": "No theme yet."
+  },
+  "knowledgeOn": {
+    "message": "On: used by the local AI"
+  },
+  "knowledgeOff": {
+    "message": "Off: ignored"
+  },
+  "knowledgeBundled": {
+    "message": "bundled"
+  },
+  "knowledgeMine": {
+    "message": "added by you"
+  },
+  "knowledgeDelete": {
+    "message": "Delete"
+  },
+  "knowledgeDeleteConfirm": {
+    "message": "Delete the theme “$1”?"
+  },
+  "knowledgeServerDown": {
+    "message": "The Streamlet server is not responding (or is an older version): run the setup script again."
+  },
+  "knowledgeFormatsTitle": {
+    "message": "Formats"
+  },
+  "knowledgeColFormat": {
+    "message": "File"
+  },
+  "knowledgeColRead": {
+    "message": "How it is read"
+  },
+  "knowledgeCsv": {
+    "message": "Each row is a fact, with the column names (“number: 47 · name: Lot-et-Garonne”). Export from Excel, Numbers or Google Sheets. Separator: comma, semicolon or tab."
+  },
+  "knowledgeTxt": {
+    "message": "Each line (or paragraph, for written text) is a fact. A “# Title” first line names the theme."
+  },
+  "knowledgeJson": {
+    "message": "A list of objects or sentences, one fact per item (JSONL: one per line)."
+  },
+  "knowledgeTemplates": {
+    "message": "The theme is named after the file (or its “# Title”). Start from a template:"
+  },
+  "knowledgeTemplateCsv": {
+    "message": "CSV template"
+  },
+  "knowledgeTemplateTxt": {
+    "message": "TXT template"
+  },
+  "knowledgeTemplateCsvName": {
+    "message": "World capitals.csv"
+  },
+  "knowledgeTemplateCsvContent": {
+    "message": "country,capital,continent\nAustralia,Canberra,Oceania\nCanada,Ottawa,North America\nJapan,Tokyo,Asia\n"
+  },
+  "knowledgeTemplateTxtName": {
+    "message": "Currencies.txt"
+  },
+  "knowledgeTemplateTxtContent": {
+    "message": "# World currencies\nGeorgia: lari\nJapan: yen\nNigeria: naira\n"
   }
 }

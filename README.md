@@ -15,6 +15,10 @@
   <img src="docs/page-indice.png" alt="Streamlet affiche un indice et la réponse en bas à droite d'une page de quiz" width="820">
 </p>
 
+> **À lire avant d'utiliser Streamlet.** Cette application est avant tout conçue pour faire du **benchmark de
+> modèles d'IA en conditions réelles**. Voir l'[avertissement](#avertissement) : l'auteur se dégage de tout usage
+> qui s'apparenterait à de la triche.
+
 ---
 
 ## Sommaire
@@ -32,6 +36,7 @@
 - [Dépannage](#dépannage)
 - [Confidentialité](#confidentialité)
 - [Publier une version](#publier-une-version)
+- [Avertissement](#avertissement)
 
 ## Fonctionnement
 
@@ -271,6 +276,34 @@ L'extension s'affiche en anglais ou en français selon la langue du navigateur, 
 la même langue (messages d'erreur, avertissements). Les scripts d'installation suivent la langue du système
 (option `--lang en|fr` / `-Lang en|fr` pour la forcer). Les indices sont écrits dans la langue de la question.
 
+### Connaissances par thème
+
+L'IA locale (Qwen) connaît mal certains faits « par cœur », comme les numéros des départements ou les monnaies.
+Les **connaissances** sont des fichiers de faits par thème, stockés sur ta machine : pour chaque question, Streamlet
+y cherche les faits qui la concernent (par mots-clés : question et choix) et les donne à Qwen avec la question.
+Rien ne sort de ta machine, et Claude ne s'en sert pas.
+
+Mesuré sur le quiz des départements (moteur Local, réflexion Rapide) : **8/10 sans thème, 10/10 avec le thème
+« Départements de France »**, pour le même temps (~5 s).
+
+- **Gérer les thèmes** : dans la popup, fiche « IA locale » › **Gérer…**. La page s'ouvre dans un onglet :
+  dépose un fichier (glisser-déposer ou « Choisir un fichier »), vérifie l'aperçu (nom du thème, nombre de faits,
+  premiers faits), puis valide. Chaque thème s'active ou se désactive, ceux que tu as ajoutés se suppriment.
+- **Formats acceptés** (5 Mo maximum, texte en UTF-8) :
+
+  | Fichier | Comment il est lu |
+  |---|---|
+  | `.csv` | chaque ligne est un fait, avec les noms de colonnes (« numéro : 47 · département : Lot-et-Garonne »). Séparateur : virgule, point-virgule ou tabulation. Le plus simple : exporter depuis Excel, Numbers ou Google Sheets |
+  | `.txt` / `.md` | chaque ligne est un fait (ou chaque paragraphe, pour un texte rédigé) ; une première ligne `# Titre` donne le nom du thème |
+  | `.json` / `.jsonl` | une liste d'objets ou de phrases, un fait par élément (JSONL : un par ligne) |
+
+  Le thème prend le nom du fichier, ou son `# Titre`. La page propose des modèles CSV et TXT à télécharger.
+- **Où sont les fichiers** : les thèmes fournis avec Streamlet sont dans `connaissances/` (dans le dépôt) ; ceux que
+  tu ajoutes sont dans `~/.streamlet/connaissances/`. Tu peux aussi y déposer un fichier à la main : il est pris en
+  compte au prochain démarrage du serveur.
+- **Thème fourni** : *Départements de France* (101 départements : numéro, nom, préfecture, région), construit à partir
+  du [Code officiel géographique 2024 de l'INSEE](https://www.insee.fr/fr/information/7766585) (Licence Ouverte Etalab 2.0).
+
 ### La popup
 
 <p align="center">
@@ -279,15 +312,21 @@ la même langue (messages d'erreur, avertissements). Les scripts d'installation 
   <img src="docs/popup-sombre.png" alt="Popup de Streamlet, thème sombre" width="300">
 </p>
 
-De haut en bas : état du serveur (point vert), interrupteur de l'onglet, choix du moteur, connexion à Claude
-et choix du modèle, réglages d'affichage. Quand « Notification sur la page » est coupée, le résultat s'affiche
+De haut en bas : état du serveur (point vert), interrupteur de l'onglet, choix du moteur, puis selon le moteur :
+- **Local** : la réflexion de l'IA locale et une fiche sur le modèle local (nom, mémoire utilisée par rapport à
+  celle de la machine, part sur le GPU, taille sur le disque, délai avant que la mémoire soit libérée) ;
+  la partie Claude est masquée, puisqu'il n'est jamais appelé ;
+- **Auto** : les deux ;
+- **En ligne** : la connexion à Claude et le choix du modèle Claude.
+
+Ensuite viennent les réglages d'affichage. Quand « Notification sur la page » est coupée, le résultat s'affiche
 dans la popup (comme ci-dessus) au lieu de la page. La popup suit le thème clair ou sombre du système.
 
 Réglages de la popup :
 
 | Réglage | Effet |
 |---|---|
-| Réflexion de l'IA locale *(moteurs Local et Auto)* | **Rapide** (~3 s, la réponse seule, **sans indice** : sans réflexion, les indices sont peu fiables ; moins sûr sur les questions pièges ou en plusieurs étapes) ou **Normale** (~25 s, Qwen réfléchit jusqu'à 20 s puis donne un indice et la réponse). Appliqué tout de suite, sans redémarrer le serveur |
+| Réflexion de l'IA locale *(moteurs Local et Auto)* | **Rapide** (~5 s, Qwen réfléchit 3 s puis donne la réponse seule, **sans indice** : avec si peu de réflexion, les indices sont peu fiables ; moins sûr sur les questions pièges ou en plusieurs étapes) ou **Normale** (~25 s, Qwen réfléchit jusqu'à 20 s puis donne un indice et la réponse). Appliqué tout de suite, sans redémarrer le serveur |
 | Notification sur la page | affiche les résultats sur la page ; sinon ils restent dans la popup |
 | Afficher l'indice | montre l'indice |
 | Afficher la réponse | montre aussi la bonne réponse (désactivé par défaut) |
@@ -299,7 +338,7 @@ Badges de l'icône : `ON` = actif · `✗` = serveur injoignable · `!` = page i
 
 | Moteur | Ce qui se passe | Coût | Confidentialité |
 |---|---|---|---|
-| **Local** | Qwen via Ollama, sur ta machine (environ 25 s par question, ou 3 s en réflexion « Rapide », qui donne la réponse sans indice) | gratuit | rien ne sort de ta machine |
+| **Local** | Qwen via Ollama, sur ta machine (environ 25 s par question, ou 5 s en réflexion « Rapide », qui donne la réponse sans indice) | gratuit | rien ne sort de ta machine |
 | **Auto** | Qwen d'abord ; Claude prend le relais si Qwen est trop lent (90 s), échoue ou est arrêté | gratuit le plus souvent | Claude seulement en secours |
 | **En ligne** | Claude directement : plus rapide, comprend les images et les pages complexes | voir ci-dessous | la question est envoyée à Anthropic |
 
@@ -440,3 +479,13 @@ réessaiera simplement plus tard).
 
 > L'identifiant `streamlet@streamlet.app` (`extension/manifest.json`) est lié au compte qui signe la première
 > version : il ne doit plus changer ensuite.
+
+## Avertissement
+
+Streamlet est avant tout conçu comme un outil de **benchmark dynamique de modèles d'IA** : comparer, sur de vraies
+pages de questions et en conditions réelles, des modèles locaux et en ligne (justesse des réponses, temps de
+réponse, effet de la réflexion et des connaissances par thème, mémoire utilisée).
+
+L'auteur se dégage de toute responsabilité quant aux usages qui pourraient s'apparenter à de la triche (examens,
+concours, évaluations notées, tests de recrutement…) ou qui contreviendraient au règlement d'un site, d'un
+établissement ou d'une plateforme. Chaque utilisateur reste seul responsable de l'usage qu'il fait de Streamlet.

@@ -1,0 +1,103 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Streamlet</title>
+<style>
+  :root { --fond: #f8fafc; --carte: #ffffff; --texte: #111827; --doux: #6b7280; --bord: #e5e7eb;
+          --ok: #16a34a; --ko: #dc2626; --accent: #2563eb; --zone: #eff6ff; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fond: #0f0f12; --carte: #18181b; --texte: #f4f4f5; --doux: #a1a1aa; --bord: #3f3f46; --zone: #172033; }
+  }
+  * { box-sizing: border-box; }
+  [hidden] { display: none !important; }
+  body { margin: 0; background: var(--fond); color: var(--texte); font: 14px/1.5 -apple-system, system-ui, sans-serif; }
+  main { max-width: 760px; margin: 0 auto; padding: 32px 16px 64px; }
+  h1 { font-size: 20px; margin: 0 0 4px; display: flex; align-items: center; gap: 10px; }
+  h1 img { width: 28px; height: 28px; border-radius: 7px; }
+  h2 { font-size: 15px; margin: 28px 0 10px; }
+  .intro, .aide { color: var(--doux); }
+  .aide { font-size: 13px; }
+  .carte { background: var(--carte); border: 1px solid var(--bord); border-radius: 12px; padding: 16px; }
+  .depot { border: 2px dashed var(--bord); border-radius: 12px; padding: 28px 16px; text-align: center; background: var(--carte);
+           transition: border-color .15s, background .15s; }
+  .depot.survol { border-color: var(--accent); background: var(--zone); }
+  .bouton { padding: 8px 14px; border: 0; border-radius: 8px; background: var(--accent); color: #fff; font: inherit; cursor: pointer; }
+  .bouton.discret { background: transparent; color: var(--texte); border: 1px solid var(--bord); }
+  .bouton.danger { background: transparent; color: var(--ko); border: 1px solid var(--bord); padding: 4px 10px; font-size: 13px; }
+  .bouton:disabled { opacity: .5; cursor: default; }
+  .actions { display: flex; gap: 8px; margin-top: 12px; flex-wrap: wrap; }
+  .apercu .nom { font-weight: 600; font-size: 15px; }
+  .exemple { font-family: ui-monospace, Menlo, monospace; font-size: 12px; background: var(--fond); border-radius: 6px;
+             padding: 6px 8px; margin-top: 6px; overflow-wrap: anywhere; }
+  .msg { color: var(--ko); margin-top: 8px; }
+  .msg.ok { color: var(--ok); }
+  .theme { display: flex; align-items: center; gap: 12px; padding: 12px 0; border-top: 1px solid var(--bord); }
+  .theme:first-child { border-top: 0; padding-top: 0; }
+  .theme .infos { flex: 1; min-width: 0; }
+  .theme .titre { font-weight: 600; overflow-wrap: anywhere; }
+  .etiquette { display: inline-block; font-size: 11px; color: var(--doux); border: 1px solid var(--bord); border-radius: 999px;
+               padding: 0 8px; margin-left: 6px; font-weight: normal; }
+  input[type=checkbox] { appearance: none; width: 36px; height: 20px; border-radius: 10px; background: var(--bord);
+                         position: relative; cursor: pointer; flex: none; transition: background .15s; margin: 0; }
+  input[type=checkbox]::after { content: ""; position: absolute; top: 2px; left: 2px; width: 16px; height: 16px;
+                                border-radius: 50%; background: #fff; transition: left .15s; }
+  input[type=checkbox]:checked { background: var(--ok); }
+  input[type=checkbox]:checked::after { left: 18px; }
+  table { width: 100%; border-collapse: collapse; font-size: 13px; }
+  td, th { text-align: left; padding: 6px 8px; border-top: 1px solid var(--bord); vertical-align: top; }
+  th { color: var(--doux); font-weight: normal; }
+  code { font-family: ui-monospace, Menlo, monospace; font-size: 12px; }
+  a { color: var(--accent); }
+</style>
+</head>
+<body>
+<main>
+  <h1><img src="icons/icon-32.png" alt=""><span data-i18n="knowledgeTitle"></span></h1>
+  <p class="intro" data-i18n="knowledgeIntro"></p>
+  <div class="msg" id="msg-serveur" hidden></div>
+
+  <h2 data-i18n="knowledgeAdd"></h2>
+  <div class="depot" id="depot">
+    <div data-i18n="knowledgeDrop"></div>
+    <div class="actions" style="justify-content: center">
+      <button class="bouton" id="choisir" data-i18n="knowledgeChoose"></button>
+    </div>
+    <input type="file" id="fichier" accept=".csv,.txt,.md,.json,.jsonl" hidden>
+    <p class="aide" data-i18n="knowledgeFormats"></p>
+  </div>
+
+  <div class="carte apercu" id="apercu" hidden style="margin-top: 12px">
+    <div class="aide" data-i18n="knowledgePreview"></div>
+    <div class="nom" id="apercu-nom"></div>
+    <div class="aide" id="apercu-nb"></div>
+    <div id="apercu-exemples"></div>
+    <div class="actions">
+      <button class="bouton" id="valider" data-i18n="knowledgeConfirm"></button>
+      <button class="bouton discret" id="annuler" data-i18n="knowledgeCancel"></button>
+    </div>
+  </div>
+  <div class="msg" id="msg-depot"></div>
+
+  <h2 data-i18n="knowledgeList"></h2>
+  <div class="carte" id="liste"></div>
+
+  <h2 data-i18n="knowledgeFormatsTitle"></h2>
+  <div class="carte">
+    <table>
+      <tr><th data-i18n="knowledgeColFormat"></th><th data-i18n="knowledgeColRead"></th></tr>
+      <tr><td><code>.csv</code></td><td data-i18n="knowledgeCsv"></td></tr>
+      <tr><td><code>.txt</code> <code>.md</code></td><td data-i18n="knowledgeTxt"></td></tr>
+      <tr><td><code>.json</code> <code>.jsonl</code></td><td data-i18n="knowledgeJson"></td></tr>
+    </table>
+    <p class="aide" data-i18n="knowledgeTemplates"></p>
+    <div class="actions">
+      <button class="bouton discret" id="modele-csv" data-i18n="knowledgeTemplateCsv"></button>
+      <button class="bouton discret" id="modele-txt" data-i18n="knowledgeTemplateTxt"></button>
+    </div>
+  </div>
+</main>
+<script src="connaissances.js"></script>
+</body>
+</html>

@@ -98,17 +98,29 @@
     return null;
   }
 
+  // Zone de texte qui AFFICHE la question : certains sites l'écrivent en JavaScript dans un <textarea> ou un
+  // <input> désactivé (ex. qcmquiz.com). Son contenu n'est pas un nœud texte : il faut lire sa valeur.
+  // Au moins trois lettres d'affilée : écarte les compteurs (« 1 / 10 ») et les champs vides.
+  const champAffichant = (n) =>
+    (n.tagName === "TEXTAREA" || (n.tagName === "INPUT" && /^(text|search)?$/i.test(n.getAttribute("type") || "")))
+    && /\p{L}{3}/u.test(n.value || "") && visible(n);
+
   function texteAvant(racine, cible, choix) {
-    const w = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT);
-    let dernier = null, n;
+    const w = document.createTreeWalker(racine, NodeFilter.SHOW_TEXT | NodeFilter.SHOW_ELEMENT);
+    let dernier = null, valeur = null, n;
     while ((n = w.nextNode())) {
       if (cible.contains(n) || cible.compareDocumentPosition(n) & Node.DOCUMENT_POSITION_FOLLOWING) break;
-      if (!propre(n.textContent) || !visible(n.parentElement)) continue;
       if (choix.some((c) => c.bloc.contains(n))) continue;
+      if (n.nodeType === Node.ELEMENT_NODE) {
+        if (champAffichant(n)) { dernier = n; valeur = propre(n.value); }
+        continue;
+      }
+      if (!propre(n.textContent) || !visible(n.parentElement)) continue;
       dernier = n.parentElement.closest("p,h1,h2,h3,h4,h5,h6,legend,li,td,div,span,label") || n.parentElement;
+      valeur = null;
     }
     if (!dernier || dernier.contains(cible)) return null;
-    return { el: dernier, texte: texte(dernier).slice(0, 1000) };
+    return { el: dernier, texte: (valeur ?? texte(dernier)).slice(0, 1000) };
   }
 
   function lettreDe(t, i) {

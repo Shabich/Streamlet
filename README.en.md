@@ -15,6 +15,10 @@
   <img src="docs/page-indice.png" alt="Streamlet shows a hint and the answer at the bottom right of a quiz page" width="820">
 </p>
 
+> **Read this before using Streamlet.** This application is designed first and foremost for **benchmarking AI
+> models in real conditions**. See the [disclaimer](#disclaimer): the author disclaims any use that would amount
+> to cheating.
+
 ---
 
 ## Contents
@@ -32,6 +36,7 @@
 - [Troubleshooting](#troubleshooting)
 - [Privacy](#privacy)
 - [Publishing a release](#publishing-a-release)
+- [Disclaimer](#disclaimer)
 
 ## How it works
 
@@ -274,6 +279,33 @@ The extension is shown in English or French depending on the browser language, a
 same language (error messages, warnings). The setup scripts follow the system language
 (`--lang en|fr` / `-Lang en|fr` to force it). Hints are written in the language of the question.
 
+### Knowledge themes
+
+The local AI (Qwen) is weak on some "memorized" facts, like French department numbers or currencies.
+**Knowledge themes** are themed fact files stored on your computer: for each question, Streamlet looks up the
+facts related to it (keyword search on the question and choices) and gives them to Qwen with the question.
+Nothing leaves your computer, and Claude does not use them.
+
+Measured on the French departments quiz (Local engine, Fast reasoning): **8/10 without a theme, 10/10 with the
+"Départements de France" theme**, in the same time (~5 s).
+
+- **Manage themes**: in the popup, "Local AI" card › **Manage…**. The page opens in a tab: drop a file
+  (drag and drop or "Choose a file"), check the preview (theme name, number of facts, first facts), then confirm.
+  Each theme can be turned on or off, and the ones you added can be deleted.
+- **Accepted formats** (5 MB max, UTF-8 text):
+
+  | File | How it is read |
+  |---|---|
+  | `.csv` | each row is a fact, with the column names ("number: 47 · department: Lot-et-Garonne"). Separator: comma, semicolon or tab. Easiest: export from Excel, Numbers or Google Sheets |
+  | `.txt` / `.md` | each line is a fact (or each paragraph, for written text); a first `# Title` line names the theme |
+  | `.json` / `.jsonl` | a list of objects or sentences, one fact per item (JSONL: one per line) |
+
+  The theme is named after the file, or its `# Title`. The page offers CSV and TXT templates to download.
+- **Where the files are**: bundled themes are in `connaissances/` (in the repository); the ones you add are in
+  `~/.streamlet/connaissances/`. You can also drop a file there by hand: it is picked up the next time the server starts.
+- **Bundled theme**: *Départements de France* (101 departments: number, name, prefecture, region), built from the
+  [INSEE 2024 Official Geographic Code](https://www.insee.fr/fr/information/7766585) (Licence Ouverte Etalab 2.0).
+
 ### The popup
 
 <p align="center">
@@ -282,8 +314,14 @@ same language (error messages, warnings). The setup scripts follow the system la
   <img src="docs/popup-sombre.png" alt="Streamlet popup, dark theme" width="300">
 </p>
 
-From top to bottom: server status (green dot), tab switch, engine, Claude connection and model, display
-settings. When "Notification on the page" is off, the result is shown in the popup (as above) instead of the
+From top to bottom: server status (green dot), tab switch, engine, then depending on the engine:
+- **Local**: local AI reasoning and a card about the local model (name, memory used compared with the
+  computer's total, share on the GPU, size on disk, time before the memory is freed); the Claude part is
+  hidden, since Claude is never called;
+- **Auto**: both;
+- **Online**: the Claude connection and Claude model.
+
+Then come the display settings. When "Notification on the page" is off, the result is shown in the popup (as above) instead of the
 page. The popup follows the system's light or dark theme. *(Screenshots in French; the popup is shown in your
 browser language.)*
 
@@ -291,7 +329,7 @@ Popup settings:
 
 | Setting | Effect |
 |---|---|
-| Local AI reasoning *(Local and Auto engines)* | **Fast** (~3 s, the answer only, **no hint**: without reasoning, hints are unreliable; less reliable on tricky or multi-step questions) or **Normal** (~25 s, Qwen reasons for up to 20 s, then gives a hint and the answer). Applied right away, no server restart |
+| Local AI reasoning *(Local and Auto engines)* | **Fast** (~5 s, Qwen thinks for 3 s then gives the answer only, **no hint**: with so little reasoning, hints are unreliable; less reliable on tricky or multi-step questions) or **Normal** (~25 s, Qwen reasons for up to 20 s, then gives a hint and the answer). Applied right away, no server restart |
 | Notification on the page | shows results on the page; otherwise they stay in the popup |
 | Show the hint | shows the hint |
 | Show the answer | also shows the right answer (off by default) |
@@ -303,7 +341,7 @@ Icon badges: `ON` = on · `✗` = server unreachable · `!` = page cannot be rea
 
 | Engine | What happens | Cost | Privacy |
 |---|---|---|---|
-| **Local** | Qwen via Ollama, on your computer (about 25 s per question, or 3 s with “Fast” reasoning, which gives the answer without a hint) | free | nothing leaves your computer |
+| **Local** | Qwen via Ollama, on your computer (about 25 s per question, or 5 s with “Fast” reasoning, which gives the answer without a hint) | free | nothing leaves your computer |
 | **Auto** | Qwen first; Claude takes over if Qwen is too slow (90 s), fails or is stopped | free most of the time | Claude only as a fallback |
 | **Online** | Claude directly: faster, understands images and complex pages | see below | the question is sent to Anthropic |
 
@@ -443,3 +481,13 @@ tries again later).
 
 > The ID `streamlet@streamlet.app` (`extension/manifest.json`) is tied to the account that signs the first
 > version: it must never change afterwards.
+
+## Disclaimer
+
+Streamlet is designed first and foremost as a **dynamic AI model benchmarking tool**: comparing local and online
+models on real question pages, in real conditions (answer accuracy, response time, effect of reasoning and of
+knowledge themes, memory used).
+
+The author disclaims all responsibility for any use that could amount to cheating (exams, competitive exams, graded
+assessments, recruitment tests…) or that would breach the rules of a website, an institution or a platform. Each
+user remains solely responsible for how they use Streamlet.

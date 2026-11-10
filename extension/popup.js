@@ -99,7 +99,8 @@ function initMoteur() {
   }
   for (const b of document.querySelectorAll("#reflexions button")) {
     b.addEventListener("click", async () => {
-      try { afficherReflexion((await poster("/config", { reflexion: b.dataset.reflexion })).ok ? b.dataset.reflexion : null); } catch {}
+      try { await poster("/config", { reflexion: b.dataset.reflexion }); } catch {}
+      rafraichir(); // affiche ce que le serveur a réellement enregistré
     });
   }
   for (const b of document.querySelectorAll("#modeles button")) {
@@ -141,9 +142,44 @@ function afficherMode(mode) {
   for (const b of document.querySelectorAll("#modes button")) b.classList.toggle("choisi", b.dataset.mode === mode);
   $("aide-mode").textContent = AIDE_MODES[mode] ? t(AIDE_MODES[mode]) : "";
   $("bloc-reflexion").hidden = !mode || mode === "claude"; // la réflexion ne concerne que l'IA locale
+  // Local : seul le modèle local compte, Claude n'est jamais appelé. En ligne : seul Claude compte.
+  $("bloc-claude").hidden = mode === "local";
+  $("bloc-local").hidden = !mode || mode === "claude";
+}
+
+// Octets → « 9,2 Go » / « 9.2 GB » selon la langue (en multiples de 1 024, comme macOS et Windows : 16 Go = 16 Go).
+const go = (octets) => t("gigabytes", (octets / 2 ** 30).toLocaleString(chrome.i18n.getUILanguage(), { maximumFractionDigits: 1 }));
+
+function afficherConnaissances(c) {
+  $("local-connaissances").textContent = !c ? "" : c.total ? t("knowledgeSummary", c.actifs, c.total) : t("knowledgeNone");
+}
+
+function afficherLocal(l) {
+  if (!l) return; // serveur d'une version précédente
+  $("local-modele").textContent = l.modele;
+  const jauge = $("local-jauge");
+  jauge.hidden = !(l.charge && l.memoire && l.memoire_totale);
+  if (!l.ollama) $("local-etat").textContent = t("ollamaDown");
+  else if (!l.installe) $("local-etat").textContent = t("localNotInstalled", l.modele);
+  else if (!l.charge) $("local-etat").textContent = t("localNotLoaded", go(l.disque));
+  else {
+    $("local-etat").textContent = l.memoire_totale ? t("localMemory", go(l.memoire), go(l.memoire_totale)) : t("localMemoryNoTotal", go(l.memoire));
+    if (!jauge.hidden) {
+      const part = Math.min(100, (100 * l.memoire) / l.memoire_totale);
+      $("local-jauge-plein").style.width = part + "%";
+      jauge.classList.toggle("haute", part > 75);
+    }
+  }
+  const details = [];
+  if (l.charge) details.push(l.gpu >= 100 ? t("localGpuFull") : l.gpu <= 0 ? t("localCpuOnly") : t("localGpuPart", l.gpu));
+  if (l.charge && l.disque) details.push(t("localOnDisk", go(l.disque)));
+  if (l.charge && l.libere_dans != null) details.push(t("localFreesIn", l.libere_dans));
+  $("local-details").textContent = details.join(" · ");
 }
 
 function afficherReflexion(reflexion) {
+  // Un serveur d'une version précédente ne connaît pas ce réglage : il l'ignore sans rien dire.
+  $("msg-reflexion").textContent = reflexion ? "" : t("serverOutdated");
   if (!reflexion) return;
   for (const b of document.querySelectorAll("#reflexions button")) b.classList.toggle("choisi", b.dataset.reflexion === reflexion);
   $("aide-reflexion").textContent = AIDE_REFLEXIONS[reflexion] ? t(AIDE_REFLEXIONS[reflexion]) : "";
@@ -249,6 +285,8 @@ async function rafraichir() {
     $("serveur").textContent = t("serverRunning");
     afficherMode(e.mode);
     afficherReflexion(e.reflexion);
+    afficherLocal(e.local);
+    afficherConnaissances(e.connaissances);
     afficherClaude(e.claude, e.mode);
     if (e.resultats?.questions?.length && e.resultats.id !== derniersResultats?.id) {
       derniersResultats = e.resultats;
@@ -282,6 +320,8 @@ async function initCapture() {
 }
 
 traduirePage();
+// Page « Connaissances » dans un onglet : un sélecteur de fichier dans la popup la fermerait (Firefox).
+$("gerer-connaissances").addEventListener("click", (e) => { e.preventDefault(); chrome.runtime.openOptionsPage(); });
 initOnglet();
 initMoteur();
 initAffichage();

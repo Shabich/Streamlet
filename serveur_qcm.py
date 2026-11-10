@@ -34,6 +34,8 @@ import anthropic
 import keyring
 import ollama
 
+from connaissances import Connaissances, EXTENSIONS as FORMATS_CONNAISSANCES
+
 ICI = Path(__file__).resolve().parent
 DOSSIER = Path.home() / ".streamlet"            # réglages et journal
 FICHIER_CONFIG = DOSSIER / "config.json"
@@ -57,7 +59,9 @@ def migrer_anciens_reglages():
     except keyring.errors.KeyringError:
         pass  # pas de trousseau (certains Linux) : la clé passera par ANTHROPIC_API_KEY
 MODES = ("local", "auto", "claude")
-REFLEXIONS = ("rapide", "normale")   # IA locale : sans réflexion (~3 s) ou réflexion plafonnée (~25 s)
+REFLEXIONS = ("rapide", "normale")   # IA locale : réflexion de 3 s, réponse seule (~5 s) ou plafonnée à 20 s (~25 s)
+# Mesuré sur 13 questions (départements) : sans réflexion 8/13, 3 s de réflexion 10/13, 5 s aussi 10/13.
+REFLEXION_RAPIDE = 3
 
 # Langue des messages renvoyés à l'extension : celle du navigateur, transmise à chaque requête
 # (en-tête X-Streamlet-Lang). Le journal du serveur, lui, reste en français.
@@ -265,6 +269,26 @@ class Stockage:
             f.write(json.dumps(ligne, ensure_ascii=False) + "\n")
 
 
+def memoire_totale():
+    """Mémoire vive de la machine, en octets (None si inconnue)."""
+    try:
+        if sys.platform == "win32":
+            import ctypes
+
+            class Etat(ctypes.Structure):
+                _fields_ = [("dwLength", ctypes.c_ulong), ("dwMemoryLoad", ctypes.c_ulong),
+                            ("ullTotalPhys", ctypes.c_ulonglong), ("ullAvailPhys", ctypes.c_ulonglong),
+                            ("ullTotalPageFile", ctypes.c_ulonglong), ("ullAvailPageFile", ctypes.c_ulonglong),
+                            ("ullTotalVirtual", ctypes.c_ulonglong), ("ullAvailVirtual", ctypes.c_ulonglong),
+                            ("ullAvailExtendedVirtual", ctypes.c_ulonglong)]
+            e = Etat(); e.dwLength = ctypes.sizeof(Etat)
+            ctypes.windll.kernel32.GlobalMemoryStatusEx(ctypes.byref(e))
+            return e.ullTotalPhys
+        return os.sysconf("SC_PAGE_SIZE") * os.sysconf("SC_PHYS_PAGES")
+    except (AttributeError, ValueError, OSError):
+        return None
+
+
 def telecharger_image(url, cote_max=1024, taille_max=8_000_000):
     """Télécharge une image de la page que l'extension n'a pas pu lire (autre site). Renvoie du JPEG en base64,
     ou None. Refuse les adresses locales/privées : une page ne doit pas pouvoir faire lire au serveur une
@@ -325,14 +349,22 @@ def associer_reponse(reponse, choix):
     """Rattache le texte de la réponse au choix correspondant : {"lettre", "texte"} (ou None)."""
     if not reponse:
         return None
+    import re
     normal = lambda t: " ".join((t or "").lower().split()).strip(" .")
     r = normal(reponse)
+    # Réponse donnée par sa seule lettre (« C », « C) ») : fréquent sans réflexion.
+    m = re.fullmatch(r"([a-h])\s*[.)\-:]?", r)
+    if m:
+        for c in choix:
+            if (c.get("lettre") or "").lower() == m.group(1):
+                return {"lettre": c["lettre"], "texte": c["texte"]}
     for c in choix:  # texte identique, puis l'un contenu dans l'autre (« B. Lyon » / « Lyon »)
         if normal(c["texte"]) == r:
             return {"lettre": c["lettre"], "texte": c["texte"]}
     for c in choix:
         t = normal(c["texte"])
-        if t and (t in r or r in t):
+        # Au moins 2 caractères : une lettre seule (« a ») se retrouverait dans presque n'importe quel choix.
+        if t and len(r) >= 2 and (t in r or r in t):
             return {"lettre": c["lettre"], "texte": c["texte"]}
     return {"lettre": "", "texte": reponse}
 
@@ -567,6 +599,8 @@ class Serveur:
         if self.fichier_config.exists():
             self.config.update(lire_json(self.fichier_config.read_text()))
         self.claude = Claude(self.config["acces_claude"], self.config["modele_claude"])
+        # Connaissances par thème (RAG local) : fournies avec Streamlet + déposées depuis l'extension.
+        self.connaissances = Connaissances(ICI / "connaissances", DOSSIER / "connaissances")
         self.derniere_page = None  # (éléments de la page, question) du dernier appel Claude
         self.file = queue.Queue(maxsize=1)  # garde seulement l'envoi le plus récent
         self.pages_vues = set()             # mode secours : pages déjà analysées
@@ -790,14 +824,31 @@ class Serveur:
             flux.close()  # coupe la connexion : Ollama arrête de générer
         return lire_json("".join(contenu)), "".join(pensee)
 
-    def reponse_qwen_rapide(self, qcm):
-        """Réflexion « rapide » : la réponse seule, en quelques secondes, sans indice (trop peu fiable sans réflexion)."""
+    def reponse_qwen_rapide(self, qcm, contexte=""):
+        """Réflexion « rapide » : Qwen réfléchit REFLEXION_RAPIDE secondes puis conclut ; la réponse seule (~5 s),
+        sans indice (peu fiable avec si peu de réflexion)."""
         choix = "\n".join(f"{c['lettre']}. {c['texte']}" for c in qcm["choix"])
-        r = ollama.chat(model=self.args.modele,
-                        messages=[{"role": "user", "content": PROMPT_REPONSE.format(question=qcm["question"], choix=choix)}],
-                        format=SCHEMA_REPONSE, think=False, options={"temperature": 0.3, "num_ctx": 8192},
-                        keep_alive="30m")
-        reponse = (lire_json(r["message"]["content"]).get("reponse") or "").strip()
+        prompt = contexte + PROMPT_REPONSE.format(question=qcm["question"], choix=choix)
+        t0, pensee, contenu, fini = time.monotonic(), [], [], True
+        flux = ollama.chat(model=self.args.modele, messages=[{"role": "user", "content": prompt}],
+                           format=SCHEMA_REPONSE, think=True, options=OPTIONS_RAISONNEMENT, keep_alive="30m", stream=True)
+        try:
+            for m in flux:
+                pensee.append(m.message.thinking or "")
+                contenu.append(m.message.content or "")
+                if time.monotonic() - t0 > REFLEXION_RAPIDE:
+                    fini = False
+                    break
+        finally:
+            flux.close()  # Ollama arrête de générer
+        if not fini:  # réflexion coupée : Qwen conclut à partir de ce qu'il a déjà pensé
+            suite = (prompt + "\n\nVoici ta réflexion jusqu'ici :\n" + "".join(pensee)[-8000:] +
+                     "\n\nNe réfléchis plus : donne maintenant la réponse à partir de cette réflexion.")
+            r = ollama.chat(model=self.args.modele, messages=[{"role": "user", "content": suite}],
+                            format=SCHEMA_REPONSE, think=False, options={"temperature": 0.3, "num_ctx": 8192},
+                            keep_alive="30m")
+            contenu = [r["message"]["content"]]
+        reponse = (lire_json("".join(contenu)).get("reponse") or "").strip()
         return {"indice": "", "reponse": reponse, "source": "qwen_rapide", "pensee": ""} if reponse else None
 
     def conclure_qwen(self, prompt, pensee):
@@ -820,6 +871,8 @@ class Serveur:
         prompt = PROMPT_INDICE.format(question=qcm["question"], choix=choix)
         if self.mode == "claude":
             return self.indice_claude(prompt)
+        contexte = self.contexte(qcm)  # connaissances par thème : seulement pour Qwen
+        prompt_claude, prompt = prompt, contexte + prompt
 
         # Moteur auto : Qwen a --delai-local secondes avant que Claude prenne le relais.
         # Moteur local : réflexion plafonnée à --reflexion-max secondes, puis Qwen conclut à partir de sa réflexion
@@ -827,12 +880,12 @@ class Serveur:
         # Réflexion « rapide » (popup) : la réponse seule, sans réfléchir (~3 s), en local comme en auto.
         if self.reflexion == "rapide":
             try:
-                return self.reponse_qwen_rapide(qcm)
+                return self.reponse_qwen_rapide(qcm, contexte)
             except Exception as e:
                 if not self.secours_claude:
                     raise
                 print(f"    Qwen indisponible ({type(e).__name__}) → Claude")
-                return self.indice_claude(prompt)
+                return self.indice_claude(prompt_claude)
         if self.secours_claude:
             delai = self.args.delai_local
         else:
@@ -849,11 +902,11 @@ class Serveur:
             if not self.secours_claude:
                 raise
             print(f"    Qwen indisponible ({type(e).__name__}) → Claude")
-            return self.indice_claude(prompt)
+            return self.indice_claude(prompt_claude)
 
         if self.secours_claude:
             print(f"    Qwen trop lent ({raison}) → Claude")
-            return self.indice_claude(prompt)
+            return self.indice_claude(prompt_claude)
         print(f"    {raison}, on conclut à partir de la réflexion…")
         return self.conclure_qwen(prompt, pensee)
 
@@ -917,9 +970,94 @@ class Serveur:
         self.etat["resultats"] = {"id": self.compteur, "url": url, "envoi": envoi, "questions": questions}
         self.etat["dernier"] = questions[-1]  # pour la popup (mode sans notification)
 
+    # -- connaissances par thème (RAG local) --
+    @property
+    def connaissances_inactives(self):
+        return set(self.config.get("connaissances_inactives", []))
+
+    def contexte(self, qcm):
+        """Faits des thèmes actifs utiles à cette question, à placer en tête du prompt de Qwen ("" si aucun)."""
+        faits = self.connaissances.rechercher(qcm["question"], [c["texte"] for c in qcm.get("choix", [])],
+                                              self.connaissances_inactives)
+        if not faits:
+            return ""
+        themes = sorted({nom for nom, _ in faits})
+        print(f"    connaissances : {len(faits)} fait(s) de {', '.join(themes)}")
+        return ("Informations de référence (fiables : appuie-toi dessus si elles concernent la question) :\n"
+                + "\n".join(f"- {fait}" for _, fait in faits) + "\n\n")
+
+    def erreur_connaissance(self, e):
+        code = str(e)
+        return {"format": M(f"Format non pris en charge (formats acceptés : {', '.join(FORMATS_CONNAISSANCES)}).",
+                            f"Unsupported format (accepted: {', '.join(FORMATS_CONNAISSANCES)})."),
+                "vide": M("Aucun fait lisible dans ce fichier.", "No readable fact in this file."),
+                "taille": M("Fichier trop gros (5 Mo maximum).", "File too large (5 MB maximum)."),
+                }.get(code, M(f"Fichier illisible : {code}", f"Unreadable file: {code}"))
+
+    def route_connaissances(self, chemin, p):
+        """POST /connaissances/{apercu,ajouter,activer,supprimer}. Renvoie (code HTTP, corps)."""
+        from connaissances import lire
+        if chemin in ("/connaissances/apercu", "/connaissances/ajouter"):
+            nom_fichier, contenu = str(p.get("nom_fichier") or ""), str(p.get("contenu") or "")
+            try:
+                if len(contenu.encode("utf-8")) > 5 * 1024 * 1024:
+                    raise ValueError("taille")
+                nom, faits = lire(nom_fichier, contenu)
+                if chemin.endswith("/ajouter"):
+                    ident = self.connaissances.ajouter(nom_fichier, contenu)
+                    self.changer_connaissance(ident, True)
+                    print(f"→ connaissances : thème « {nom} » ajouté ({len(faits)} faits)")
+            except Exception as e:
+                return 400, {"ok": False, "erreur": self.erreur_connaissance(e)}
+            return 200, {"ok": True, "nom": nom, "nb": len(faits), "exemples": faits[:3],
+                         "themes": self.connaissances.liste(self.connaissances_inactives)}
+        if chemin == "/connaissances/activer":
+            ok = self.changer_connaissance(p.get("id"), bool(p.get("actif")))
+        elif chemin == "/connaissances/supprimer":
+            ok = self.connaissances.supprimer(p.get("id"))
+            if ok:
+                print(f"→ connaissances : thème {p.get('id')} supprimé")
+        else:
+            return 404, {"erreur": "inconnu"}
+        return (200 if ok else 400), {"ok": ok, "themes": self.connaissances.liste(self.connaissances_inactives)}
+
+    def changer_connaissance(self, ident, actif):
+        if ident not in self.connaissances.themes:
+            return False
+        inactifs = self.connaissances_inactives
+        (inactifs.discard if actif else inactifs.add)(ident)
+        self.config["connaissances_inactives"] = sorted(inactifs)
+        self.fichier_config.parent.mkdir(parents=True, exist_ok=True)
+        self.fichier_config.write_text(json.dumps(self.config))
+        return True
+
     def etat_complet(self):
         return {**self.etat, "mode": self.mode, "modele": self.args.modele, "reflexion": self.reflexion,
-                "claude": self.claude.etat(), "nb_qcm": len(self.stockage.items)}
+                "claude": self.claude.etat(), "local": self.etat_local(), "nb_qcm": len(self.stockage.items),
+                "connaissances": {"total": len(self.connaissances.themes),
+                                  "actifs": sum(1 for t in self.connaissances.themes if t not in self.connaissances_inactives)}}
+
+    def etat_local(self):
+        """Modèle local pour la popup : chargé ou non, mémoire utilisée, part sur le GPU, taille sur le disque.
+        Mis en cache 3 s (la popup interroge le serveur toutes les 1,5 s)."""
+        if time.monotonic() - getattr(self, "_local_vu", 0) < 3:
+            return self._local
+        nom = self.args.modele if ":" in self.args.modele else self.args.modele + ":latest"
+        info = {"modele": self.args.modele, "ollama": False, "installe": False, "charge": False,
+                "memoire_totale": memoire_totale()}
+        try:
+            disque = next((m for m in ollama.list().models if m.model == nom), None)
+            info.update(ollama=True, installe=disque is not None, disque=disque.size if disque else None)
+            charge = next((m for m in ollama.ps().models if m.model == nom), None)
+            if charge:
+                info.update(charge=True, memoire=charge.size, gpu=round(100 * (charge.size_vram or 0) / charge.size)
+                            if charge.size else 0, quantification=charge.details.quantization_level or None,
+                            libere_dans=max(0, round((charge.expires_at.timestamp() - time.time()) / 60))
+                            if charge.expires_at else None)
+        except Exception:
+            pass  # Ollama arrêté ou absent : info["ollama"] reste False
+        self._local, self._local_vu = info, time.monotonic()
+        return info
 
 
 def handler(serveur, port):
@@ -965,13 +1103,18 @@ def handler(serveur, port):
             # piloter le serveur (ni dépenser tes crédits Claude). L'extension, elle, y a droit.
             if not (self.headers.get("Content-Type") or "").startswith("application/json"):
                 return self.repondre(415, {"erreur": "JSON attendu"})
+            taille = int(self.headers.get("Content-Length", 0) or 0)
+            if taille > 8 * 1024 * 1024:
+                return self.repondre(413, {"erreur": M("Requête trop grosse (8 Mo maximum).", "Request too large (8 MB maximum).")})
             try:
-                p = json.loads(self.rfile.read(int(self.headers.get("Content-Length", 0))) or b"{}")
+                p = json.loads(self.rfile.read(taille) or b"{}")
             except (ValueError, json.JSONDecodeError):
                 return self.repondre(400, {"erreur": "JSON invalide"})
             if self.path == "/qcm":
                 serveur.recevoir(p)
                 return self.repondre(202, {"ok": True})
+            if self.path.startswith("/connaissances/"):
+                return self.repondre(*serveur.route_connaissances(self.path, p))
             if self.path == "/config":
                 ok = isinstance(p, dict) and serveur.changer_config(p)
                 return self.repondre(200 if ok else 400, {"ok": ok, "mode": serveur.mode,
@@ -992,6 +1135,8 @@ def handler(serveur, port):
                 return self.repondre(403, {"erreur": "hôte refusé"})
             if self.path == "/etat":
                 return self.repondre(200, serveur.etat_complet())
+            if self.path == "/connaissances":
+                return self.repondre(200, {"themes": serveur.connaissances.liste(serveur.connaissances_inactives)})
             self.repondre(404, {"erreur": "inconnu"})
 
         def log_message(self, *a):
@@ -1059,10 +1204,18 @@ def installer_service(options):
             "StandardErrorPath": str(JOURNAL),
         }
         domaine = f"gui/{os.getuid()}"
-        launchctl("bootout", f"{domaine}/{LABEL}")  # remplace une ancienne version éventuelle
+        launchctl("bootout", f"{domaine}/{LABEL}")  # remplace une version déjà installée
         retirer_ancien_service_macos()
+        # bootout rend la main avant la fin de l'arrêt : un bootstrap immédiat échoue (« Input/output error »).
+        for _ in range(50):
+            if launchctl("print", f"{domaine}/{LABEL}").returncode != 0:
+                break
+            time.sleep(0.2)
         PLIST.write_bytes(plistlib.dumps(plist))
         r = launchctl("bootstrap", domaine, str(PLIST))
+        if r.returncode != 0:  # dernier recours : on laisse launchd finir et on réessaie
+            time.sleep(2)
+            r = launchctl("bootstrap", domaine, str(PLIST))
 
     elif sys.platform == "win32":
         arreter_windows()  # remplace une ancienne version éventuelle
