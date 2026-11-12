@@ -289,39 +289,6 @@ def memoire_totale():
         return None
 
 
-def telecharger_image(url, cote_max=1024, taille_max=8_000_000):
-    """Télécharge une image de la page que l'extension n'a pas pu lire (autre site). Renvoie du JPEG en base64,
-    ou None. Refuse les adresses locales/privées : une page ne doit pas pouvoir faire lire au serveur une
-    ressource de ton réseau (box, services sur 127.0.0.1…)."""
-    import base64, io, ipaddress, socket, urllib.parse, urllib.request
-    from PIL import Image
-    try:
-        u = urllib.parse.urlparse(url)
-        if u.scheme not in ("http", "https") or not u.hostname:
-            return None
-        for info in socket.getaddrinfo(u.hostname, u.port or (443 if u.scheme == "https" else 80)):
-            ip = ipaddress.ip_address(info[4][0])
-            if ip.is_private or ip.is_loopback or ip.is_link_local or ip.is_reserved or ip.is_multicast:
-                return None
-        req = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0 (Macintosh) QCM-Stream",
-                                                   "Accept": "image/*"})
-        with urllib.request.urlopen(req, timeout=8) as r:
-            if not r.headers.get("Content-Type", "").startswith("image/"):
-                return None
-            donnees = r.read(taille_max + 1)
-        if len(donnees) > taille_max:
-            return None
-        img = Image.open(io.BytesIO(donnees))
-        img.thumbnail((cote_max, cote_max))
-        fond = Image.new("RGB", img.size, "white")  # PNG transparents : fond blanc
-        fond.paste(img.convert("RGBA"), mask=img.convert("RGBA").split()[3])
-        sortie = io.BytesIO()
-        fond.save(sortie, "JPEG", quality=85)
-        return base64.b64encode(sortie.getvalue()).decode()
-    except Exception:
-        return None
-
-
 def contenu_message(prompt, images):
     """Contenu d'un message Claude : chaque image précédée de son repère [img k], puis le texte."""
     blocs = []
@@ -733,20 +700,12 @@ class Serveur:
                 and all(normal(q["question"]) in normal(c["page"]) for q in self.derniere_page[1])):
             print("    mêmes questions qu'avant (correction affichée ?) : pas de nouvel appel")
             return self.derniere_page[1]
-        # Images que l'extension n'a pas pu lire (autre site) : le serveur les télécharge par leur adresse.
-        manquantes = [i for i in c.get("images", []) if not i.get("data") and i.get("src")]
-        for im in manquantes:
-            im["data"] = telecharger_image(im["src"])
-        recuperees = sum(1 for i in manquantes if i.get("data"))
-        if manquantes:
-            print(f"    {recuperees}/{len(manquantes)} image(s) d'un autre site téléchargée(s) par le serveur")
-            if recuperees == len(manquantes):
-                c["erreur_images"] = None
-            else:
-                n = len(manquantes) - recuperees
-                c["erreur_images"] = M(f"{n} image(s) illisible(s) (protégée(s) par une connexion au site ?) : "
-                                       "Claude a répondu sans",
-                                       f"{n} unreadable image(s) (behind a site login?): Claude answered without them")
+        # Images que l'extension n'a pas pu lire ni capturer : rien n'est téléchargé, Claude répond sans.
+        manquantes = sum(1 for i in c.get("images", []) if not i.get("data"))
+        c["erreur_images"] = M(f"{manquantes} image(s) illisible(s) (clic droit › « lire cette image ») : "
+                               "Claude a répondu sans",
+                               f"{manquantes} unreadable image(s) (right-click › “read this image”): "
+                               "Claude answered without them") if manquantes else None
         images = [i for i in c.get("images", []) if i.get("data")]
         print(f"    page envoyée à Claude ({len(c['page'])} caractères, {len(c['elements'])} éléments, "
               f"{len(images)} image(s))" + (f" — {c['erreur_images']}" if c.get("erreur_images") else ""))

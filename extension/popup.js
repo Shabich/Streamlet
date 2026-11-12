@@ -218,12 +218,12 @@ function afficherClaude(claude, mode) {
 }
 
 // ---------- afficher l'indice / la réponse (préférence gardée dans l'extension) ----------
-const affichage = { notif: true, indice: true, reponse: false };
+const affichage = { indice: true, reponse: false };
 let resultatRecu = false;
 
 async function initAffichage() {
   try { Object.assign(affichage, (await chrome.storage.local.get("affichage")).affichage); } catch {}
-  for (const [cle, id] of [["notif", "voir-notif"], ["indice", "voir-indice"], ["reponse", "voir-reponse"]]) {
+  for (const [cle, id] of [["indice", "voir-indice"], ["reponse", "voir-reponse"]]) {
     $(id).checked = affichage[cle];
     $(id).addEventListener("change", () => {
       affichage[cle] = $(id).checked;
@@ -236,12 +236,43 @@ async function initAffichage() {
 
 function appliquerAffichage() {
   afficherResultats();
-  // Notifications actives : le résultat est sur la page ; sinon il s'affiche ici.
-  $("carte").hidden = affichage.notif || !resultatRecu;
-  $("note-notif").hidden = !affichage.notif;
+  $("carte").hidden = !resultatRecu;
 }
 
-// ---------- résultats de la page (affichés ici quand la notification sur la page est coupée) ----------
+// ---------- panneau latéral (résultats à côté de la page, rien n'est ajouté à la page) ----------
+// Le navigateur n'accepte de l'ouvrir que sur un clic : l'appel doit partir directement du clic, sans attente.
+let fenetreId = null;
+chrome.windows.getCurrent().then((w) => { fenetreId = w.id; }).catch(() => {});
+// Chaque navigateur a son API, on teste ce qui existe vraiment :
+//   Firefox            : browser.sidebarAction.open()
+//   Chrome, Edge, Brave : chrome.sidePanel.open()
+//   Opera, Arc…        : pas d'ouverture possible par l'extension -> petite fenêtre Streamlet séparée.
+async function ouvrirFenetre() {
+  const { fenetrePanneau } = await chrome.storage.session.get("fenetrePanneau");
+  if (fenetrePanneau != null) {
+    try { await chrome.windows.update(fenetrePanneau, { focused: true }); return; } catch {} // fermée entre-temps
+  }
+  const w = await chrome.windows.create({ url: "panneau.html?fenetre=1", type: "popup", width: 360, height: 560 });
+  await chrome.storage.session.set({ fenetrePanneau: w.id });
+}
+
+$("ouvrir-panneau").addEventListener("click", () => {
+  const echec = (e) => { console.warn("Panneau :", e); $("msg").textContent = t("panelError", String(e?.message || e)); };
+  const secours = (e) => { if (e) console.warn("Panneau latéral indisponible, fenêtre séparée :", e); return ouvrirFenetre(); };
+  let ouverture;
+  // Appels faits directement dans le clic : sinon le navigateur refuse (geste utilisateur requis).
+  try {
+    const firefox = globalThis.browser?.sidebarAction;
+    if (typeof firefox?.open === "function") ouverture = firefox.open();
+    else if (typeof chrome.sidePanel?.open === "function") {
+      // windowId inconnu (clic très rapide) : l'onglet courant suffit aussi.
+      ouverture = chrome.sidePanel.open(fenetreId != null ? { windowId: fenetreId } : { tabId: ongletCourant });
+    } else ouverture = secours();
+  } catch (e) { ouverture = secours(e); }
+  Promise.resolve(ouverture).catch(secours).then(() => window.close(), echec);
+});
+
+// ---------- résultats de la page (aussi affichés ici) ----------
 let derniersResultats = null;
 
 function bloc(etiquette, texte, classe) {

@@ -10,7 +10,6 @@
   const envois = new Map(); // numéro d'envoi -> éléments de la page ([n] -> élément)
 
   const propre = (t) => (t || "").replace(/\s+/g, " ").trim();
-  const tr = (cle, ...valeurs) => chrome.i18n.getMessage(cle, valeurs.map(String)); // textes traduits
   const texte = (el) => propre(el?.innerText ?? el?.textContent);
 
   function visible(el) {
@@ -310,7 +309,7 @@
   }
 
   // ---------- Lecture des images dans la page ----------
-  // Marche pour les images du même site ou autorisées (CORS) ; sinon l'extension tentera une capture d'écran.
+  // Marche pour les images du même site ou autorisées (CORS) ; sinon l'extension en fait une capture d'écran.
   const COTE_MAX = 1024;
   function versJpeg(source, w, h) {
     const r = Math.min(1, COTE_MAX / Math.max(w, h));
@@ -342,10 +341,8 @@
         await Promise.race([el.decode().catch(() => {}), new Promise((ok) => setTimeout(ok, 4000))]);
       }
       if (el.tagName === "IMG" && el.complete && el.naturalWidth) {
-        try { return versJpeg(el, el.naturalWidth, el.naturalHeight); } catch {}
-        // Image d'un autre site : on retente en la téléchargeant (accepté si le site l'autorise).
-        const bmp = await createImageBitmap(await (await fetch(el.currentSrc || el.src)).blob());
-        return versJpeg(bmp, bmp.width, bmp.height);
+        // Image d'un autre site : illisible ici (rien n'est retéléchargé), l'extension la capturera à l'écran.
+        return versJpeg(el, el.naturalWidth, el.naturalHeight);
       }
     } catch {}
     return null;
@@ -410,87 +407,9 @@
     planifier();
   };
 
-  // ---------- Fenêtre de résultat, affichée sur la page quand l'indice arrive ----------
-  // Réglé par les interrupteurs de la popup. notif = false : rien sur la page, résultat dans la popup.
-  const affichage = { notif: true, indice: true, reponse: false };
-  const rienAMontrer = () => !affichage.notif || (!affichage.indice && !affichage.reponse);
-  let hote = null, corps = null, dernierId = null, resultats = null, affichee = null, attente = null;
-
-  chrome.storage.local.get("affichage").then((r) => Object.assign(affichage, r.affichage)).catch(() => {});
-  chrome.storage.onChanged.addListener((ch) => {
-    if (!ch.affichage) return;
-    Object.assign(affichage, ch.affichage.newValue);
-    if (rienAMontrer()) hote?.remove();
-    else if (resultats && hote?.isConnected) montrerResultats(resultats);
-  });
-
-  const STYLE = `
-    :host { all: initial; }
-    .carte { width: 320px; max-width: calc(100vw - 32px); box-sizing: border-box; padding: 12px 14px;
-             border-radius: 12px; font: 13px/1.45 -apple-system, system-ui, sans-serif;
-             background: #ffffff; color: #111827; border: 1px solid #e5e7eb;
-             box-shadow: 0 10px 30px rgba(0,0,0,.18); animation: entree .18s ease-out; }
-    @media (prefers-color-scheme: dark) {
-      .carte { background: #18181b; color: #f4f4f5; border-color: #3f3f46; }
-      .etiquette, .question { color: #a1a1aa; }
-    }
-    @keyframes entree { from { opacity: 0; transform: translateY(8px); } }
-    .tete { display: flex; justify-content: space-between; align-items: center; margin-bottom: 6px; }
-    .titre { font-weight: 600; font-size: 12px; }
-    .fermer { all: unset; cursor: pointer; font-size: 18px; line-height: 1; padding: 0 2px; opacity: .6; }
-    .fermer:hover { opacity: 1; }
-    .question { color: #6b7280; font-size: 12px; margin-bottom: 8px;
-                display: -webkit-box; -webkit-line-clamp: 2; -webkit-box-orient: vertical; overflow: hidden; }
-    .etiquette { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: #6b7280; margin-top: 6px; }
-    .reponse { font-weight: 600; color: #16a34a; }
-    .avertissement { margin-top: 8px; font-size: 11px; color: #b45309; }
-    .attente { display: flex; align-items: center; gap: 8px; color: #2563eb; }
-    .roue { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
-            border-radius: 50%; animation: tour .8s linear infinite; }
-    @keyframes tour { to { transform: rotate(360deg); } }`;
-
-  function fenetre() {
-    if (!hote?.isConnected) {
-      hote = document.createElement("div");
-      hote.style.cssText = "all:initial;position:fixed;right:16px;bottom:16px;z-index:2147483647";
-      // Shadow DOM fermé : les styles du site n'y touchent pas, et la vue compacte ne le lit pas.
-      const racine = hote.attachShadow({ mode: "closed" });
-      const style = document.createElement("style");
-      style.textContent = STYLE;
-      const carte = document.createElement("div");
-      carte.className = "carte";
-      const tete = document.createElement("div");
-      tete.className = "tete";
-      tete.append(el("span", "titre", "Streamlet"));
-      const fermer = el("button", "fermer", "×");
-      fermer.title = tr("close");
-      fermer.addEventListener("click", () => hote.remove());
-      tete.append(fermer);
-      corps = document.createElement("div");
-      carte.append(tete, corps);
-      racine.append(style, carte);
-      document.documentElement.appendChild(hote);
-    }
-    corps.replaceChildren();
-    return corps;
-  }
-
-  // textContent uniquement : la question vient de la page, on n'injecte jamais de HTML.
-  function el(tag, classe, txt) {
-    const e = document.createElement(tag);
-    if (classe) e.className = classe;
-    if (txt != null) e.textContent = txt;
-    return e;
-  }
-
-  function montrerAttente(question) {
-    if (rienAMontrer()) return;
-    const c = fenetre();
-    c.append(el("div", "question", question));
-    const a = el("div", "attente");
-    a.append(el("span", "roue"), el("span", null, tr("thinking")));
-    c.append(a);
-  }
+  // ---------- Résultats : rien n'est ajouté à la page ----------
+  // Ils s'affichent dans le panneau latéral de l'extension (panneau.html) ou dans la popup.
+  // La page sert seulement à dire au panneau quelle question est à l'écran.
 
   // Parmi les questions de la page, celle dont les choix sont le plus près du centre de l'écran.
   function questionALEcran(res) {
@@ -508,67 +427,15 @@
     return meilleure;
   }
 
-  function montrerResultats(res) {
-    if (rienAMontrer()) { hote?.remove(); return; }
-    const i = questionALEcran(res);
-    montrerResultat(res.questions[i], res.questions.length > 1 ? tr("questionOfPage", i + 1, res.questions.length) : null);
-    affichee = i;
-  }
-
-  function montrerResultat(d, position) {
-    if (rienAMontrer()) { hote?.remove(); return; }
-    const c = fenetre();
-    if (position) c.append(el("div", "etiquette", position));
-    c.append(el("div", "question", d.question));
-    // Mode Rapide : pas d'indice, seulement la réponse (si l'utilisateur l'affiche).
-    if (affichage.indice && d.indice) c.append(el("div", "etiquette", tr("hint")), el("div", null, d.indice));
-    if (!d.indice && !affichage.reponse) c.append(el("div", null, tr("fastNoHint")));
-    if (affichage.reponse) {
-      const r = d.reponse;
-      c.append(el("div", "etiquette", tr("answer")),
-               el("div", "reponse", r ? (r.lettre && !new RegExp(`^\\s*${r.lettre}\\s*[.)\\-:]`, "i").test(r.texte) ? `${r.lettre}. ` : "") + r.texte : "—"));
-    }
-    // Ex. : image d'un autre site non lisible -> Claude a répondu sans la voir.
-    if (d.avertissement) c.append(el("div", "avertissement", "⚠ " + d.avertissement));
-  }
-
-  // Demande au serveur (via l'extension) s'il y a un résultat pour cette page.
-  const sonde = setInterval(async () => {
-    let r;
-    try { r = await chrome.runtime.sendMessage({ type: "resultat" }); } catch { return; }
-    if (!r) return;
-    if (r.en_cours && r.en_cours_url === location.href) {
-      // Simple analyse de la page (moteur en ligne) : texte traduit ; vraie question : son énoncé.
-      if (attente !== r.en_cours) { attente = r.en_cours; montrerAttente(r.en_cours_question ? r.en_cours : tr("analyzingPage")); }
-      return;
-    }
-    const attendait = attente !== null;
-    attente = null;
-    const res = r.resultats;
-    if (res && res.id !== dernierId && res.url === location.href && res.questions?.length) {
-      dernierId = res.id;
-      resultats = res;
-      montrerResultats(res);
-    } else if (attendait) {
-      // Analyse terminée sans nouveau résultat (pas de question, mêmes questions…) : retour à l'état d'avant.
-      if (resultats) montrerResultats(resultats);
-      else hote?.remove();
-    }
-  }, 1500);
-
-  // En faisant défiler la page, la fenêtre suit la question à l'écran.
-  let defilement = null;
-  const suivreDefilement = () => {
-    clearTimeout(defilement);
-    defilement = setTimeout(() => {
-      if (!resultats || resultats.questions.length < 2 || !hote?.isConnected || attente) return;
-      if (questionALEcran(resultats) !== affichee) montrerResultats(resultats);
-    }, 150);
-  };
-  addEventListener("scroll", suivreDefilement, { passive: true });
-  addEventListener("resize", suivreDefilement, { passive: true });
+  // Signale à l'extension que l'onglet est toujours utilisé (sert à l'arrêt automatique après 2 min sans question).
+  const sonde = setInterval(() => { chrome.runtime.sendMessage({ type: "resultat" }).catch(() => {}); }, 1500);
 
   chrome.runtime.onMessage.addListener((msg, _expediteur, repondre) => {
+    if (msg.type === "question-visible") {
+      // Le panneau demande l'adresse de la page et la question à l'écran.
+      repondre({ url: location.href, index: msg.resultats?.questions?.length ? questionALEcran(msg.resultats) : 0 });
+      return;
+    }
     if (msg.type === "zone-image") {
       // Où est l'image cliquée (clic droit) ? L'extension en découpera la capture d'écran.
       const img = [...document.images].find((i) => i.currentSrc === msg.src || i.src === msg.src);
@@ -583,20 +450,10 @@
     }
     if (msg.type !== "stop") return;
     clearInterval(sonde);
-    removeEventListener("scroll", suivreDefilement);
-    removeEventListener("resize", suivreDefilement);
     observateur.disconnect();
     clearInterval(verification);
     clearTimeout(minuteur);
     delete window.__qcmStream;
-    if (msg.raison === "inactif") {
-      // Arrêt automatique : on explique pourquoi, puis la fenêtre disparaît.
-      const c = fenetre();
-      c.append(el("div", null, tr("autoStopped")));
-      setTimeout(() => hote?.remove(), 15000);
-    } else {
-      hote?.remove();
-    }
   });
 
   window.__qcmStream = { relancer: () => { derniereSignature = ""; planifier(); } };

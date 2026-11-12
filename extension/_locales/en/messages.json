@@ -119,9 +119,6 @@
   "autoWithoutClaude": {
     "message": "Without Claude, the auto engine stays local."
   },
-  "showNotification": {
-    "message": "Notification on the page"
-  },
   "showHint": {
     "message": "Show the hint"
   },
@@ -136,9 +133,6 @@
   },
   "captureOff": {
     "message": "Otherwise: right-click the image › “Streamlet: read this image”. Turning this on asks for access to all sites."
-  },
-  "resultsOnPage": {
-    "message": "Results are shown on the page, bottom right."
   },
   "thinkingAbout": {
     "message": "Thinking: $1…"
@@ -169,12 +163,6 @@
   },
   "answer": {
     "message": "Answer"
-  },
-  "close": {
-    "message": "Close"
-  },
-  "thinking": {
-    "message": "Thinking…"
   },
   "questionOfPage": {
     "message": "Question $1 of $2 on the page"
@@ -358,5 +346,17 @@
   },
   "knowledgeTemplateTxtContent": {
     "message": "# World currencies\nGeorgia: lari\nJapan: yen\nNigeria: naira\n"
+  },
+  "openPanel": {
+    "message": "Open side panel"
+  },
+  "panelInactive": {
+    "message": "Streamlet is not enabled on this tab. Enable it from the extension icon."
+  },
+  "panelWaiting": {
+    "message": "Waiting for a question on this page…"
+  },
+  "panelError": {
+    "message": "Couldn't open the side panel: $1"
   }
 }

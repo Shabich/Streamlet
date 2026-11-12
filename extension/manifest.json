@@ -7,7 +7,8 @@
     "activeTab",
     "scripting",
     "storage",
-    "contextMenus"
+    "contextMenus",
+    "sidePanel"
   ],
   "host_permissions": [
     "http://127.0.0.1/*"
@@ -29,6 +30,18 @@
       "32": "icons/icon-32.png",
       "48": "icons/icon-48.png"
     }
+  },
+  "side_panel": {
+    "default_path": "panneau.html"
+  },
+  "sidebar_action": {
+    "default_panel": "panneau.html",
+    "default_title": "Streamlet",
+    "default_icon": {
+      "16": "icons/icon-16.png",
+      "32": "icons/icon-32.png"
+    },
+    "open_at_install": false
   },
   "icons": {
     "16": "icons/icon-16.png",

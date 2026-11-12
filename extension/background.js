@@ -50,7 +50,7 @@ async function joindreImages(tab, payload) {
 
   } catch (e) {
     // Sans <all_urls>, la capture n'est permise que juste après avoir cliqué sur l'extension (activeTab).
-    // Pas grave : le serveur téléchargera ces images par leur adresse.
+    // Ces images restent sans données : Claude répondra sans (clic droit « lire cette image » en secours).
     payload.compacte.erreur_capture = String(e.message || e);
   }
 }
@@ -106,14 +106,23 @@ function enBase64(buffer) {
   return btoa(s);
 }
 
+// Onglets coupés automatiquement : le panneau latéral explique pourquoi (rien n'est affiché sur la page).
+async function noterArret(tabId, raison) {
+  const { arrets = {} } = await chrome.storage.session.get("arrets");
+  if (raison) arrets[tabId] = raison; else delete arrets[tabId];
+  await chrome.storage.session.set({ arrets });
+}
+
 async function activer(tabId) {
   await majOnglets((o) => { o[tabId] = { vu: Date.now() }; });
+  await noterArret(tabId, null);
   return injecter(tabId);
 }
 
-// raison = "inactif" : arrêt automatique (la page affiche pourquoi Streamlet s'est coupé).
+// raison = "inactif" : arrêt automatique (le panneau affiche pourquoi Streamlet s'est coupé).
 async function desactiver(tabId, raison) {
   await majOnglets((o) => { delete o[tabId]; });
+  await noterArret(tabId, raison);
   badge(tabId, "");
   try { await chrome.tabs.sendMessage(tabId, { type: "stop", raison }); } catch {}
   return { ok: true };
@@ -128,7 +137,7 @@ chrome.tabs.onUpdated.addListener(async (tabId, info) => {
   await majOnglets((o) => { if (o[tabId]) o[tabId].vu = Math.max(o[tabId].vu || 0, Date.now() - DELAI_INACTIF + GRACE_PAGE); });
   injecter(tabId);
 });
-chrome.tabs.onRemoved.addListener((tabId) => majOnglets((o) => { delete o[tabId]; }));
+chrome.tabs.onRemoved.addListener(async (tabId) => { await majOnglets((o) => { delete o[tabId]; }); await noterArret(tabId, null); });
 
 // Si la popup s'est fermée pendant la demande de permission, on termine l'activation ici.
 chrome.permissions.onAdded.addListener(async () => {
@@ -157,8 +166,7 @@ chrome.runtime.onMessage.addListener((msg, sender, repondre) => {
     return;
   }
   if (msg.type === "resultat") {
-    // La page demande s'il y a un résultat à afficher (seulement depuis un onglet coché).
-    // Appelé toutes les 1,5 s par chaque onglet actif : sert aussi à repérer l'inactivité.
+    // Appelé toutes les 1,5 s par chaque onglet coché : sert à repérer l'inactivité (arrêt automatique).
     const tabId = sender.tab?.id;
     ongletsActifs().then(async (o) => {
       if (!o[tabId]) return repondre(null);
@@ -178,7 +186,8 @@ chrome.runtime.onMessage.addListener((msg, sender, repondre) => {
   const actions = {
     activer: () => activer(msg.tabId),
     desactiver: () => desactiver(msg.tabId),
-    etat: async () => ({ actif: !!(await ongletsActifs())[msg.tabId] }),
+    etat: async () => ({ actif: !!(await ongletsActifs())[msg.tabId],
+                         arret: ((await chrome.storage.session.get("arrets")).arrets || {})[msg.tabId] || null }),
   };
   if (actions[msg.type]) {
     actions[msg.type]().then(repondre);

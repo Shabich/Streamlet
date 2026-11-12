@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Streamlet</title>
+<style>
+  :root { --fond: #ffffff; --texte: #111827; --doux: #6b7280; --bord: #e5e7eb; --carte: #f9fafb;
+          --ok: #16a34a; --accent: #2563eb; --alerte: #b45309; }
+  @media (prefers-color-scheme: dark) {
+    :root { --fond: #18181b; --texte: #f4f4f5; --doux: #a1a1aa; --bord: #3f3f46; --carte: #27272a; --alerte: #f59e0b; }
+  }
+  * { box-sizing: border-box; }
+  body { margin: 0; padding: 14px; font: 13px/1.45 -apple-system, system-ui, sans-serif;
+         background: var(--fond); color: var(--texte); }
+  .marque { display: flex; align-items: center; gap: 8px; font-weight: 600; font-size: 14px; margin-bottom: 12px; }
+  .marque img { width: 20px; height: 20px; border-radius: 5px; }
+  .carte { padding: 12px; background: var(--carte); border: 1px solid var(--bord); border-radius: 10px;
+           animation: entree .18s ease-out; }
+  @keyframes entree { from { opacity: 0; transform: translateY(6px); } }
+  .question { color: var(--doux); font-size: 12px; margin-bottom: 8px; }
+  .etiquette { font-size: 10px; text-transform: uppercase; letter-spacing: .05em; color: var(--doux); margin-top: 8px; }
+  .reponse { font-weight: 600; color: var(--ok); }
+  .avertissement { margin-top: 8px; font-size: 11px; color: var(--alerte); }
+  .discret { color: var(--doux); }
+  .attente { display: flex; align-items: center; gap: 8px; color: var(--accent); }
+  .roue { width: 12px; height: 12px; border: 2px solid currentColor; border-right-color: transparent;
+          border-radius: 50%; animation: tour .8s linear infinite; flex: none; }
+  @keyframes tour { to { transform: rotate(360deg); } }
+</style>
+</head>
+<body>
+  <div class="marque"><img src="icons/icon-32.png" alt="">Streamlet</div>
+  <div id="contenu"></div>
+  <script src="panneau.js"></script>
+</body>
+</html>

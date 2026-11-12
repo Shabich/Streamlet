@@ -119,9 +119,6 @@
   "autoWithoutClaude": {
     "message": "Sans Claude, le moteur auto reste en local."
   },
-  "showNotification": {
-    "message": "Notification sur la page"
-  },
   "showHint": {
     "message": "Afficher l'indice"
   },
@@ -136,9 +133,6 @@
   },
   "captureOff": {
     "message": "Sinon : clic droit sur l'image › « Streamlet : lire cette image ». L'activer demande l'accès à tous les sites."
-  },
-  "resultsOnPage": {
-    "message": "Les résultats s'affichent sur la page, en bas à droite."
   },
   "thinkingAbout": {
     "message": "Réflexion en cours : $1…"
@@ -169,12 +163,6 @@
   },
   "answer": {
     "message": "Réponse"
-  },
-  "close": {
-    "message": "Fermer"
-  },
-  "thinking": {
-    "message": "Réflexion en cours…"
   },
   "questionOfPage": {
     "message": "Question $1 / $2 de la page"
@@ -358,5 +346,17 @@
   },
   "knowledgeTemplateTxtContent": {
     "message": "# Monnaies du monde\nGéorgie : lari\nJapon : yen\nNigeria : naira\n"
+  },
+  "openPanel": {
+    "message": "Ouvrir le panneau latéral"
+  },
+  "panelInactive": {
+    "message": "Streamlet n'est pas activé sur cet onglet. Active-le depuis l'icône de l'extension."
+  },
+  "panelWaiting": {
+    "message": "En attente d'une question sur cette page…"
+  },
+  "panelError": {
+    "message": "Impossible d'ouvrir le panneau : $1"
   }
 }
